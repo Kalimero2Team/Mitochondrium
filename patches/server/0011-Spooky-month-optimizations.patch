@@ -1,0 +1,209 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: MrPowerGamerBR <git@mrpowergamerbr.com>
+Date: Tue, 21 Nov 2023 16:50:04 -0300
+Subject: [PATCH] Spooky month optimizations
+
+The quintessential patch that other performance forks also have for... some reason??? I thought that this optimization was too funny to not do it in SparklyPaper.
+
+Caches when Bat's spooky season starts and ends, and when Skeleton and Zombies halloween starts and ends. The epoch is updated every 90 days. If your server is running for 90+ days straight without restarts, congratulations!
+
+Avoids unnecessary date checks, even tho that this shouldn't really improve performance that much... unless you have a lot of bats/zombies/skeletons spawning.
+
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index 58bd689d039af82c41bc280d02251b3fadc7c286..b212ee4cf6f607d9ff7210c7c74733cec33bb125 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -317,7 +317,8 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+     public volatile boolean abnormalExit = false; // Paper
+     public static final long SERVER_INIT = System.nanoTime(); // Paper - Lag compensation
+     public final Set<Entity> entitiesWithScheduledTasks = java.util.concurrent.ConcurrentHashMap.newKeySet(); // SparklyPaper - skip EntityScheduler's executeTick checks if there isn't any tasks to be run (concurrent because plugins may schedule tasks async)
+-    
++    public net.sparklypower.sparklypaper.HalloweenManager halloweenManager = new net.sparklypower.sparklypaper.HalloweenManager(); // SparklyPaper - Spooky month optimizations
++
+     public static <S extends MinecraftServer> S spin(Function<Thread, S> serverFactory) {
+         AtomicReference<S> atomicreference = new AtomicReference();
+         Thread thread = new io.papermc.paper.util.TickThread(() -> { // Paper - rewrite chunk system
+diff --git a/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java b/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java
+index 1fd163c4a4fdcbdb2626f15a4549c41c5e69e061..47cc556f9c8d4193b41f35568439bd0d6b358901 100644
+--- a/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java
++++ b/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java
+@@ -241,6 +241,10 @@ public class DedicatedServer extends MinecraftServer implements ServerInterface
+         }
+         net.sparklypower.sparklypaper.SparklyPaperCommands.INSTANCE.registerCommands(this);
+         // SparklyPaper end
++        // SparklyPaper start - Spooky month optimizations
++        halloweenManager.startHalloweenEpochTask();
++        halloweenManager.waitUntilEpochHasBeenUpdated();
++        // SparklyPaper end
+         com.destroystokyo.paper.VersionHistoryManager.INSTANCE.getClass(); // Paper - load version history now
+ 
+         this.setPvpAllowed(dedicatedserverproperties.pvp);
+diff --git a/src/main/java/net/minecraft/world/entity/ambient/Bat.java b/src/main/java/net/minecraft/world/entity/ambient/Bat.java
+index dc27ddf5131e7398a5390a5187261d4c7fb6ccaa..6c8664c9cf75a88007e43348059fad7e5c60f963 100644
+--- a/src/main/java/net/minecraft/world/entity/ambient/Bat.java
++++ b/src/main/java/net/minecraft/world/entity/ambient/Bat.java
+@@ -229,7 +229,7 @@ public class Bat extends AmbientCreature {
+             int i = world.getMaxLocalRawBrightness(pos);
+             byte b0 = 4;
+ 
+-            if (Bat.isHalloween()) {
++            if (world.getServer().halloweenManager.isSpookySeason()) { // SparklyPaper - Spooky month optimizations
+                 b0 = 7;
+             } else if (random.nextBoolean()) {
+                 return false;
+@@ -239,6 +239,8 @@ public class Bat extends AmbientCreature {
+         }
+     }
+ 
++    // SparklyPaper - Spooky month optimizations
++    /*
+     private static boolean isHalloween() {
+         LocalDate localdate = LocalDate.now();
+         int i = localdate.get(ChronoField.DAY_OF_MONTH);
+@@ -246,6 +248,7 @@ public class Bat extends AmbientCreature {
+ 
+         return j == 10 && i >= 20 || j == 11 && i <= 3;
+     }
++    */
+ 
+     private void setupAnimationStates() {
+         if (this.isResting()) {
+diff --git a/src/main/java/net/minecraft/world/entity/monster/AbstractSkeleton.java b/src/main/java/net/minecraft/world/entity/monster/AbstractSkeleton.java
+index 0c5fe46d2da113beff3e220843593d616e37d4ca..26b81b6a0111e2149020b8a8f934f2660f59780e 100644
+--- a/src/main/java/net/minecraft/world/entity/monster/AbstractSkeleton.java
++++ b/src/main/java/net/minecraft/world/entity/monster/AbstractSkeleton.java
+@@ -154,10 +154,12 @@ public abstract class AbstractSkeleton extends Monster implements RangedAttackMo
+         this.setCanPickUpLoot(this.level().paperConfig().entities.behavior.mobsCanAlwaysPickUpLoot.skeletons || randomsource.nextFloat() < 0.55F * difficulty.getSpecialMultiplier()); // Paper - Add world settings for mobs picking up loot
+         if (this.getItemBySlot(EquipmentSlot.HEAD).isEmpty()) {
+             LocalDate localdate = LocalDate.now();
+-            int i = localdate.get(ChronoField.DAY_OF_MONTH);
+-            int j = localdate.get(ChronoField.MONTH_OF_YEAR);
++            // SparklyPaper start - Spooky month optimizations
++            // int i = localdate.get(ChronoField.DAY_OF_MONTH);
++            // int j = localdate.get(ChronoField.MONTH_OF_YEAR);
+ 
+-            if (j == 10 && i == 31 && randomsource.nextFloat() < 0.25F) {
++            if (this.getServer().halloweenManager.isHalloween() /* j == 10 && i == 31 */&& randomsource.nextFloat() < 0.25F) {
++                // SparklyPaper end
+                 this.setItemSlot(EquipmentSlot.HEAD, new ItemStack(randomsource.nextFloat() < 0.1F ? Blocks.JACK_O_LANTERN : Blocks.CARVED_PUMPKIN));
+                 this.armorDropChances[EquipmentSlot.HEAD.getIndex()] = 0.0F;
+             }
+diff --git a/src/main/java/net/minecraft/world/entity/monster/Zombie.java b/src/main/java/net/minecraft/world/entity/monster/Zombie.java
+index e42dfc62bb179be1ab01b0096c05c6549d38abbc..14292ee06e065b0043f5cb087072e3d0fa11291a 100644
+--- a/src/main/java/net/minecraft/world/entity/monster/Zombie.java
++++ b/src/main/java/net/minecraft/world/entity/monster/Zombie.java
+@@ -542,10 +542,11 @@ public class Zombie extends Monster {
+ 
+         if (this.getItemBySlot(EquipmentSlot.HEAD).isEmpty()) {
+             LocalDate localdate = LocalDate.now();
+-            int i = localdate.get(ChronoField.DAY_OF_MONTH);
+-            int j = localdate.get(ChronoField.MONTH_OF_YEAR);
++            // SparklyPaper start - Spooky month optimizations
++            // int i = localdate.get(ChronoField.DAY_OF_MONTH);
++            // int j = localdate.get(ChronoField.MONTH_OF_YEAR);
+ 
+-            if (j == 10 && i == 31 && randomsource.nextFloat() < 0.25F) {
++            if (this.getServer().halloweenManager.isHalloween() /* j == 10 && i == 31 */&& randomsource.nextFloat() < 0.25F) {
+                 this.setItemSlot(EquipmentSlot.HEAD, new ItemStack(randomsource.nextFloat() < 0.1F ? Blocks.JACK_O_LANTERN : Blocks.CARVED_PUMPKIN));
+                 this.armorDropChances[EquipmentSlot.HEAD.getIndex()] = 0.0F;
+             }
+diff --git a/src/main/kotlin/net/sparklypower/sparklypaper/HalloweenManager.kt b/src/main/kotlin/net/sparklypower/sparklypaper/HalloweenManager.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..8dd82e727872c0d6c4d0827ac63d5fecb9218c61
+--- /dev/null
++++ b/src/main/kotlin/net/sparklypower/sparklypaper/HalloweenManager.kt
+@@ -0,0 +1,93 @@
++package net.sparklypower.sparklypaper
++
++import com.mojang.logging.LogUtils
++import java.time.LocalDateTime
++import java.time.Month
++import java.time.ZoneOffset
++import java.util.concurrent.*
++
++class HalloweenManager {
++    companion object {
++        private val LOGGER = LogUtils.getLogger()
++    }
++    private var spookySeasonStartEpoch = 0L
++    private var spookySeasonEndEpoch = 0L
++    private var halloweenStartEpoch = 0L
++    private var halloweenEndEpoch = 0L
++    private var executor = Executors.newSingleThreadScheduledExecutor(object: ThreadFactory {
++        override fun newThread(p0: Runnable): Thread {
++            val thread = Thread(p0)
++            thread.name = "halloween-timer-updater"
++            thread.priority = 1 // Minimum priority
++            return thread
++        }
++    })
++    private var latch = CountDownLatch(1)
++
++    fun startHalloweenEpochTask() {
++        var isFirst = true
++        executor.scheduleAtFixedRate({
++            updateEpoch()
++            if (isFirst)
++                latch.countDown()
++            isFirst = false
++        }, 0L, 90L, TimeUnit.DAYS) // Every 90 days
++    }
++
++    fun waitUntilEpochHasBeenUpdated() {
++        latch.await()
++    }
++
++    fun updateEpoch() {
++        LOGGER.info("Updating Spooky Season and Halloween Time")
++        this.spookySeasonStartEpoch = getEpochMillisAtDate(20, Month.OCTOBER, false)
++        this.spookySeasonEndEpoch = getEpochMillisAtDate(3, Month.NOVEMBER, true)
++        this.halloweenStartEpoch = getEpochMillisAtDate(31, Month.OCTOBER, false)
++        this.halloweenEndEpoch = getEpochMillisAtDate(31, Month.OCTOBER, true)
++        LOGGER.info("Updated Spooky Season and Halloween Time!")
++    }
++
++    fun isSpookySeason() = System.currentTimeMillis() in spookySeasonStartEpoch until spookySeasonEndEpoch
++    fun isHalloween() = System.currentTimeMillis() in halloweenStartEpoch until halloweenEndEpoch
++
++    private fun getEpochMillisAtDate(dayOfMonth: Int, month: Month, isEnd: Boolean): Long {
++        // Get the current year
++        val currentYear = LocalDateTime.now().year
++
++        // Define the target date (20/10/CurrentYear at midnight)
++        val targetDate = LocalDateTime.of(
++            currentYear,
++            month,
++            dayOfMonth,
++            if (isEnd)
++                23
++            else
++                0,
++            if (isEnd)
++                59
++            else
++                0,
++            if (isEnd)
++                59
++            else
++                0,
++            if (isEnd)
++                999_999_999
++            else
++                0,
++        )
++
++        // Check if the target date is in the past
++        val now = LocalDateTime.now()
++        val adjustedDate = if (now.isAfter(targetDate)) {
++            // If in the past, adjust to the same date in the next year
++            targetDate.plusYears(1)
++        } else {
++            // If in the future or today, use the original target date
++            targetDate
++        }
++
++        // Convert the adjusted date to epoch time in milliseconds
++        return adjustedDate.atZone(ZoneOffset.systemDefault()).toInstant().toEpochMilli()
++    }
++}
+\ No newline at end of file
