@@ -24,12 +24,12 @@ index 58bd689d039af82c41bc280d02251b3fadc7c286..b212ee4cf6f607d9ff7210c7c74733ce
          AtomicReference<S> atomicreference = new AtomicReference();
          Thread thread = new io.papermc.paper.util.TickThread(() -> { // Paper - rewrite chunk system
 diff --git a/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java b/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java
-index 1fd163c4a4fdcbdb2626f15a4549c41c5e69e061..47cc556f9c8d4193b41f35568439bd0d6b358901 100644
+index 93020735e1ae25203f72ea59880ce7148efba8e5..7a54c2f273be1cb19c504455046f9d4f05b880e6 100644
 --- a/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java
 +++ b/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java
-@@ -241,6 +241,10 @@ public class DedicatedServer extends MinecraftServer implements ServerInterface
+@@ -240,6 +240,10 @@ public class DedicatedServer extends MinecraftServer implements ServerInterface
+             return false;
          }
-         net.sparklypower.sparklypaper.SparklyPaperCommands.INSTANCE.registerCommands(this);
          // SparklyPaper end
 +        // SparklyPaper start - Spooky month optimizations
 +        halloweenManager.startHalloweenEpochTask();

@@ -1,0 +1,320 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: byquanton <32410361+byquanton@users.noreply.github.com>
+Date: Sat, 26 Oct 2024 16:35:14 +0200
+Subject: [PATCH] (Purpur) Implement TPSBar
+
+
+diff --git a/src/main/java/com/kalimero2/team/mitochondrium/command/TPSBarCommand.java b/src/main/java/com/kalimero2/team/mitochondrium/command/TPSBarCommand.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..3b1b9e06968fa0c722284dc8897a8ea644723146
+--- /dev/null
++++ b/src/main/java/com/kalimero2/team/mitochondrium/command/TPSBarCommand.java
+@@ -0,0 +1,44 @@
++package com.kalimero2.team.mitochondrium.command;
++
++import com.kalimero2.team.mitochondrium.config.MitochondriumConfig;
++import com.kalimero2.team.mitochondrium.task.TPSBarTask;
++import com.mojang.brigadier.CommandDispatcher;
++import net.kyori.adventure.text.Component;
++import net.kyori.adventure.text.format.NamedTextColor;
++import net.kyori.adventure.text.minimessage.MiniMessage;
++import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
++import net.minecraft.commands.CommandSourceStack;
++import net.minecraft.commands.Commands;
++import net.minecraft.commands.arguments.EntityArgument;
++import net.minecraft.server.level.ServerPlayer;
++
++import java.util.Collection;
++import java.util.Collections;
++
++public class TPSBarCommand {
++    public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
++        dispatcher.register(Commands.literal("tpsbar")
++            .requires(listener -> listener.hasPermission(2, "bukkit.command.tpsbar"))
++            .executes(context -> execute(context.getSource(), Collections.singleton(context.getSource().getPlayerOrException())))
++            .then(Commands.argument("targets", EntityArgument.players())
++                .requires(listener -> listener.hasPermission(2, "bukkit.command.tpsbar.other"))
++                .executes((context) -> execute(context.getSource(), EntityArgument.getPlayers(context, "targets")))
++            )
++        );
++    }
++
++    private static int execute(CommandSourceStack sender, Collection<ServerPlayer> targets) {
++        for (ServerPlayer player : targets) {
++            boolean result = TPSBarTask.instance().togglePlayer(player.getBukkitEntity());
++            player.tpsBar(result);
++
++            Component output = MiniMessage.miniMessage().deserialize(MitochondriumConfig.tpsbarCommandOutput,
++                Placeholder.component("onoff", Component.translatable(result ? "options.on" : "options.off")
++                    .color(result ? NamedTextColor.GREEN : NamedTextColor.RED)),
++                Placeholder.parsed("target", player.getGameProfile().getName()));
++
++            sender.sendSuccess(output, false);
++        }
++        return targets.size();
++    }
++}
+diff --git a/src/main/java/com/kalimero2/team/mitochondrium/config/MitochondriumConfig.java b/src/main/java/com/kalimero2/team/mitochondrium/config/MitochondriumConfig.java
+index 36654febf968d3821edb02bbcd5aa169b1b12f1a..5fd49de1f851b34aa3a0adf0fe94782c504c56f3 100644
+--- a/src/main/java/com/kalimero2/team/mitochondrium/config/MitochondriumConfig.java
++++ b/src/main/java/com/kalimero2/team/mitochondrium/config/MitochondriumConfig.java
+@@ -2,6 +2,7 @@ package com.kalimero2.team.mitochondrium.config;
+ 
+ import com.google.common.base.Throwables;
+ import com.google.common.collect.ImmutableMap;
++import com.kalimero2.team.mitochondrium.task.TPSBarTask;
+ import net.kyori.adventure.bossbar.BossBar;
+ import net.minecraft.world.level.block.Blocks;
+ import org.bukkit.Bukkit;
+@@ -138,11 +139,13 @@ public class MitochondriumConfig {
+     public static String pingCommandOutput = "<green>%s's ping is %sms";
+     public static String ramCommandOutput = "<green>Ram Usage: <used>/<xmx> (<percent>)";
+     public static String rambarCommandOutput = "<green>Rambar toggled <onoff> for <target>";
++    public static String tpsbarCommandOutput = "<green>Tpsbar toggled <onoff> for <target>";
+ 
+     private static void messages() {
+         pingCommandOutput = getString("settings.messages.ping-command-output", pingCommandOutput);
+         ramCommandOutput = getString("settings.messages.ram-command-output", ramCommandOutput);
+         rambarCommandOutput = getString("settings.messages.rambar-command-output", rambarCommandOutput);
++        tpsbarCommandOutput = getString("settings.messages.tpsbar-command-output", tpsbarCommandOutput);
+     }
+ 
+     public static String commandRamBarTitle = "<gray>Ram<yellow>:</yellow> <used>/<xmx> (<percent>)";
+@@ -155,6 +158,17 @@ public class MitochondriumConfig {
+     public static String commandRamBarTextColorLow = "<gradient:#ff5555:#aa0000><text></gradient>";
+     public static int commandRamBarTickInterval = 20;
+ 
++    public static String commandTPSBarTitle = "<gray>TPS<yellow>:</yellow> <tps> MSPT<yellow>:</yellow> <mspt> Ping<yellow>:</yellow> <ping>ms";
++    public static BossBar.Overlay commandTPSBarProgressOverlay = BossBar.Overlay.NOTCHED_20;
++    public static TPSBarTask.FillMode commandTPSBarProgressFillMode = TPSBarTask.FillMode.MSPT;
++    public static BossBar.Color commandTPSBarProgressColorGood = BossBar.Color.GREEN;
++    public static BossBar.Color commandTPSBarProgressColorMedium = BossBar.Color.YELLOW;
++    public static BossBar.Color commandTPSBarProgressColorLow = BossBar.Color.RED;
++    public static String commandTPSBarTextColorGood = "<gradient:#55ff55:#00aa00><text></gradient>";
++    public static String commandTPSBarTextColorMedium = "<gradient:#ffff55:#ffaa00><text></gradient>";
++    public static String commandTPSBarTextColorLow = "<gradient:#ff5555:#aa0000><text></gradient>";
++    public static int commandTPSBarTickInterval = 20;
++
+     private static void commandSettings() {
+         commandRamBarTitle = getString("settings.command.rambar.title", commandRamBarTitle);
+         commandRamBarProgressOverlay = BossBar.Overlay.valueOf(getString("settings.command.rambar.overlay", commandRamBarProgressOverlay.name()));
+@@ -165,5 +179,15 @@ public class MitochondriumConfig {
+         commandRamBarTextColorMedium = getString("settings.command.rambar.text-color.medium", commandRamBarTextColorMedium);
+         commandRamBarTextColorLow = getString("settings.command.rambar.text-color.low", commandRamBarTextColorLow);
+         commandRamBarTickInterval = getInt("settings.command.rambar.tick-interval", commandRamBarTickInterval);
++        commandTPSBarTitle = getString("settings.command.tpsbar.title", commandTPSBarTitle);
++        commandTPSBarProgressOverlay = BossBar.Overlay.valueOf(getString("settings.command.tpsbar.overlay", commandTPSBarProgressOverlay.name()));
++        commandTPSBarProgressFillMode = TPSBarTask.FillMode.valueOf(getString("settings.command.tpsbar.fill-mode", commandTPSBarProgressFillMode.name()));
++        commandTPSBarProgressColorGood = BossBar.Color.valueOf(getString("settings.command.tpsbar.progress-color.good", commandTPSBarProgressColorGood.name()));
++        commandTPSBarProgressColorMedium = BossBar.Color.valueOf(getString("settings.command.tpsbar.progress-color.medium", commandTPSBarProgressColorMedium.name()));
++        commandTPSBarProgressColorLow = BossBar.Color.valueOf(getString("settings.command.tpsbar.progress-color.low", commandTPSBarProgressColorLow.name()));
++        commandTPSBarTextColorGood = getString("settings.command.tpsbar.text-color.good", commandTPSBarTextColorGood);
++        commandTPSBarTextColorMedium = getString("settings.command.tpsbar.text-color.medium", commandTPSBarTextColorMedium);
++        commandTPSBarTextColorLow = getString("settings.command.tpsbar.text-color.low", commandTPSBarTextColorLow);
++        commandTPSBarTickInterval = getInt("settings.command.tpsbar.tick-interval", commandTPSBarTickInterval);
+     }
+ }
+diff --git a/src/main/java/com/kalimero2/team/mitochondrium/task/TPSBarTask.java b/src/main/java/com/kalimero2/team/mitochondrium/task/TPSBarTask.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..88916dff11acc1547342c653370b4b83b8619ac1
+--- /dev/null
++++ b/src/main/java/com/kalimero2/team/mitochondrium/task/TPSBarTask.java
+@@ -0,0 +1,142 @@
++package com.kalimero2.team.mitochondrium.task;
++
++import com.kalimero2.team.mitochondrium.config.MitochondriumConfig;
++import net.kyori.adventure.bossbar.BossBar;
++import net.kyori.adventure.text.Component;
++import net.kyori.adventure.text.minimessage.MiniMessage;
++import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
++import org.bukkit.Bukkit;
++import org.bukkit.entity.Player;
++
++public class TPSBarTask extends BossBarTask {
++    private static TPSBarTask instance;
++    private double tps = 20.0D;
++    private double mspt = 0.0D;
++    private int tick = 0;
++
++    public static TPSBarTask instance() {
++        if (instance == null) {
++            instance = new TPSBarTask();
++        }
++        return instance;
++    }
++
++    @Override
++    BossBar createBossBar() {
++        return BossBar.bossBar(Component.text(""), 0.0F, instance().getBossBarColor(), MitochondriumConfig.commandTPSBarProgressOverlay);
++    }
++
++    @Override
++    void updateBossBar(BossBar bossbar, Player player) {
++        bossbar.progress(getBossBarProgress());
++        bossbar.color(getBossBarColor());
++        bossbar.name(MiniMessage.miniMessage().deserialize(MitochondriumConfig.commandTPSBarTitle,
++            Placeholder.component("tps", getTPSColor()),
++            Placeholder.component("mspt", getMSPTColor()),
++            Placeholder.component("ping", getPingColor(player.getPing()))
++        ));
++    }
++
++    @Override
++    public void run() {
++        if (tick < MitochondriumConfig.commandTPSBarTickInterval) {
++            return;
++        }
++        tick = 0;
++
++        this.tps = Math.max(Math.min(Bukkit.getTPS()[0], 20.0D), 0.0D);
++        this.mspt = Bukkit.getAverageTickTime();
++
++        super.run();
++    }
++
++    private float getBossBarProgress() {
++        if (MitochondriumConfig.commandTPSBarProgressFillMode == FillMode.MSPT) {
++            return Math.max(Math.min((float) mspt / 50.0F, 1.0F), 0.0F);
++        } else {
++            return Math.max(Math.min((float) tps / 20.0F, 1.0F), 0.0F);
++        }
++    }
++
++    private BossBar.Color getBossBarColor() {
++        if (isGood(MitochondriumConfig.commandTPSBarProgressFillMode)) {
++            return MitochondriumConfig.commandTPSBarProgressColorGood;
++        } else if (isMedium(MitochondriumConfig.commandTPSBarProgressFillMode)) {
++            return MitochondriumConfig.commandTPSBarProgressColorMedium;
++        } else {
++            return MitochondriumConfig.commandTPSBarProgressColorLow;
++        }
++    }
++
++    private boolean isGood(FillMode mode) {
++        return isGood(mode, 0);
++    }
++
++    private boolean isGood(FillMode mode, int ping) {
++        if (mode == FillMode.MSPT) {
++            return mspt < 40;
++        } else if (mode == FillMode.TPS) {
++            return tps >= 19;
++        } else if (mode == FillMode.PING) {
++            return ping < 100;
++        } else {
++            return false;
++        }
++    }
++
++    private boolean isMedium(FillMode mode) {
++        return isMedium(mode, 0);
++    }
++
++    private boolean isMedium(FillMode mode, int ping) {
++        if (mode == FillMode.MSPT) {
++            return mspt < 50;
++        } else if (mode == FillMode.TPS) {
++            return tps >= 15;
++        } else if (mode == FillMode.PING) {
++            return ping < 200;
++        } else {
++            return false;
++        }
++    }
++
++    private Component getTPSColor() {
++        String color;
++        if (isGood(FillMode.TPS)) {
++            color = MitochondriumConfig.commandTPSBarTextColorGood;
++        } else if (isMedium(FillMode.TPS)) {
++            color = MitochondriumConfig.commandTPSBarTextColorMedium;
++        } else {
++            color = MitochondriumConfig.commandTPSBarTextColorLow;
++        }
++        return MiniMessage.miniMessage().deserialize(color, Placeholder.parsed("text", String.format("%.2f", tps)));
++    }
++
++    private Component getMSPTColor() {
++        String color;
++        if (isGood(FillMode.MSPT)) {
++            color = MitochondriumConfig.commandTPSBarTextColorGood;
++        } else if (isMedium(FillMode.MSPT)) {
++            color = MitochondriumConfig.commandTPSBarTextColorMedium;
++        } else {
++            color = MitochondriumConfig.commandTPSBarTextColorLow;
++        }
++        return MiniMessage.miniMessage().deserialize(color, Placeholder.parsed("text", String.format("%.2f", mspt)));
++    }
++
++    private Component getPingColor(int ping) {
++        String color;
++        if (isGood(FillMode.PING, ping)) {
++            color = MitochondriumConfig.commandTPSBarTextColorGood;
++        } else if (isMedium(FillMode.PING, ping)) {
++            color = MitochondriumConfig.commandTPSBarTextColorMedium;
++        } else {
++            color = MitochondriumConfig.commandTPSBarTextColorLow;
++        }
++        return MiniMessage.miniMessage().deserialize(color, Placeholder.parsed("text", String.format("%s", ping)));
++    }
++
++    public enum FillMode {
++        TPS, MSPT, PING
++    }
++}
+diff --git a/src/main/java/net/minecraft/commands/Commands.java b/src/main/java/net/minecraft/commands/Commands.java
+index bd96c366311effb79b6c4eea9b7c6c913ad96761..263565d68a4264f0eb09541f533cde6ac402c31c 100644
+--- a/src/main/java/net/minecraft/commands/Commands.java
++++ b/src/main/java/net/minecraft/commands/Commands.java
+@@ -255,6 +255,7 @@ public class Commands {
+             com.kalimero2.team.mitochondrium.command.PingCommand.register(this.dispatcher);
+             com.kalimero2.team.mitochondrium.command.RamCommand.register(this.dispatcher);
+             com.kalimero2.team.mitochondrium.command.RamBarCommand.register(this.dispatcher);
++            com.kalimero2.team.mitochondrium.command.TPSBarCommand.register(this.dispatcher);
+         }
+ 
+         if (environment.includeIntegrated) {
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index 3d5cf0a116a9d068fbb85732666c79e432bf6cf9..03a24972b651ad2a6578012fd234c0f85e521813 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -1060,6 +1060,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+         this.safeShutdown(waitForShutdown, false);
+     }
+     public void safeShutdown(boolean waitForShutdown, boolean isRestarting) {
++        com.kalimero2.team.mitochondrium.task.BossBarTask.stopAll(); // Mitochondrium
+         this.isRestarting = isRestarting;
+         this.hasLoggedStop = true; // Paper - Debugging
+         if (isDebugging()) io.papermc.paper.util.TraceUtil.dumpTraceForThread("Server stopped"); // Paper - Debugging
+diff --git a/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java b/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java
+index 321be43a106faf52a2a017edcddbe53d0f224c1b..c335ecc49e49097d648a360a778fb54152175a46 100644
+--- a/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java
++++ b/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java
+@@ -370,6 +370,7 @@ public class DedicatedServer extends MinecraftServer implements ServerInterface
+                 DedicatedServer.LOGGER.info("JMX monitoring enabled");
+             }
+ 
++            com.kalimero2.team.mitochondrium.task.BossBarTask.startAll(); // Mitochondrium
+             return true;
+         }
+     }
+diff --git a/src/main/java/net/minecraft/server/players/PlayerList.java b/src/main/java/net/minecraft/server/players/PlayerList.java
+index 3a3519403fab0b83aa98f95155c323c9079a8a3b..ec10a123fc44d11452ea1c505bdb97bc30146d12 100644
+--- a/src/main/java/net/minecraft/server/players/PlayerList.java
++++ b/src/main/java/net/minecraft/server/players/PlayerList.java
+@@ -487,6 +487,7 @@ public abstract class PlayerList {
+             scoreboard.addPlayerToTeam(player.getScoreboardName(), collideRuleTeam);
+         }
+         // Paper end - Configurable player collision
++        com.kalimero2.team.mitochondrium.task.BossBarTask.addToAll(player); // Mitochondrium
+         PlayerList.LOGGER.info("{}[{}] logged in with entity id {} at ([{}]{}, {}, {})", player.getName().getString(), s1, player.getId(), worldserver1.serverLevelData.getLevelName(), player.getX(), player.getY(), player.getZ());
+     }
+ 
+@@ -598,6 +599,7 @@ public abstract class PlayerList {
+     }
+     public net.kyori.adventure.text.Component remove(ServerPlayer entityplayer, net.kyori.adventure.text.Component leaveMessage) {
+         // Paper end - Fix kick event leave message not being sent
++        com.kalimero2.team.mitochondrium.task.BossBarTask.removeFromAll(entityplayer.getBukkitEntity());
+         ServerLevel worldserver = entityplayer.serverLevel();
+ 
+         entityplayer.awardStat(Stats.LEAVE_GAME);

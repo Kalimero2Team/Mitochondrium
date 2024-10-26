@@ -1,0 +1,33 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: byquanton <32410361+byquanton@users.noreply.github.com>
+Date: Sat, 26 Oct 2024 17:09:56 +0200
+Subject: [PATCH] Mitochondrium Config
+
+
+diff --git a/src/main/java/org/bukkit/Server.java b/src/main/java/org/bukkit/Server.java
+index 0614bd7e2d658172a7765925adf81b75b5620f11..513053660f5b70643481426b1674efbafc51d0e5 100644
+--- a/src/main/java/org/bukkit/Server.java
++++ b/src/main/java/org/bukkit/Server.java
+@@ -26,6 +26,7 @@ import org.bukkit.command.CommandException;
+ import org.bukkit.command.CommandSender;
+ import org.bukkit.command.ConsoleCommandSender;
+ import org.bukkit.command.PluginCommand;
++import org.bukkit.configuration.file.YamlConfiguration;
+ import org.bukkit.entity.Entity;
+ import org.bukkit.entity.EntityFactory;
+ import org.bukkit.entity.EntitySnapshot;
+@@ -2257,6 +2258,14 @@ public interface Server extends PluginMessageRecipient, net.kyori.adventure.audi
+         }
+         // Paper end
+ 
++        // Mitochondrium start
++        @NotNull
++        public YamlConfiguration getMitochondriumConfig()
++        {
++            throw new UnsupportedOperationException("Not supported yet.");
++        }
++        // Mitochondrium end
++
+         /**
+          * Sends the component to the player
+          *

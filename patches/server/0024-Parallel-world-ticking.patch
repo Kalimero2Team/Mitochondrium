@@ -698,7 +698,7 @@ index cb1db5e105f685f8bda7e962dcde2523d8fbf454..3d5cf0a116a9d068fbb85732666c79e4
      public final ChatDecorator improvedChatDecorator = new io.papermc.paper.adventure.ImprovedChatDecorator(this); // Paper - adventure
      public ChatDecorator getChatDecorator() {
 diff --git a/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java b/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java
-index 47cc556f9c8d4193b41f35568439bd0d6b358901..16d17ea79ad1e39241f21a518a19705ea49f6be7 100644
+index 7a54c2f273be1cb19c504455046f9d4f05b880e6..321be43a106faf52a2a017edcddbe53d0f224c1b 100644
 --- a/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java
 +++ b/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java
 @@ -17,6 +17,7 @@ import java.util.Collections;
@@ -717,10 +717,11 @@ index 47cc556f9c8d4193b41f35568439bd0d6b358901..16d17ea79ad1e39241f21a518a19705e
  import org.slf4j.Logger;
  
  // CraftBukkit start
-@@ -240,6 +242,8 @@ public class DedicatedServer extends MinecraftServer implements ServerInterface
+@@ -239,6 +241,9 @@ public class DedicatedServer extends MinecraftServer implements ServerInterface
+             DedicatedServer.LOGGER.error("Unable to load server configuration", e);
              return false;
          }
-         net.sparklypower.sparklypaper.SparklyPaperCommands.INSTANCE.registerCommands(this);
++
 +        serverLevelTickingSemaphore = new java.util.concurrent.Semaphore(net.sparklypower.sparklypaper.configs.SparklyPaperConfigUtils.INSTANCE.getConfig().getParallelWorldTicking().getThreads()); // SparklyPaper - parallel world ticking
 +        DedicatedServer.LOGGER.info("Using " + serverLevelTickingSemaphore.availablePermits() + " permits for parallel world ticking"); // SparklyPaper - parallel world ticking
          // SparklyPaper end
@@ -1260,7 +1261,7 @@ index d262a5a6da57ef9ba9a6fe0dfbc88f577105e74f..15db3fb971a944e856b3cde86035d290
                      java.util.List<BlockState> blocks = new java.util.ArrayList<>(world.capturedBlockStates.values());
                      world.capturedBlockStates.clear();
 diff --git a/src/main/java/net/minecraft/world/level/block/entity/BaseContainerBlockEntity.java b/src/main/java/net/minecraft/world/level/block/entity/BaseContainerBlockEntity.java
-index 15fd1fe1b55b6421d2c09e8385c9f69fa0152e56..0b6918cbeb39c50efc550b9c46e0da9a65e45a98 100644
+index 2ddf349fde5b310ec3f74baee1f3d33e09d5286c..fe9c3479b61f79ed8ce3659d4e1ead8c9598ea8b 100644
 --- a/src/main/java/net/minecraft/world/level/block/entity/BaseContainerBlockEntity.java
 +++ b/src/main/java/net/minecraft/world/level/block/entity/BaseContainerBlockEntity.java
 @@ -82,6 +82,12 @@ public abstract class BaseContainerBlockEntity extends BlockEntity implements Co

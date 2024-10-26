@@ -5,10 +5,10 @@ Subject: [PATCH] SparklyPaper config files
 
 
 diff --git a/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java b/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java
-index ad967cc2283f902c76e48a59d59cf0dbdacbb5e3..1fd163c4a4fdcbdb2626f15a4549c41c5e69e061 100644
+index ad967cc2283f902c76e48a59d59cf0dbdacbb5e3..93020735e1ae25203f72ea59880ce7148efba8e5 100644
 --- a/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java
 +++ b/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java
-@@ -232,6 +232,15 @@ public class DedicatedServer extends MinecraftServer implements ServerInterface
+@@ -232,6 +232,14 @@ public class DedicatedServer extends MinecraftServer implements ServerInterface
          thread.start(); // Paper - Enhance console tab completions for brigadier commands; start console thread after MinecraftServer.console & PaperConfig are initialized
          io.papermc.paper.command.PaperCommands.registerCommands(this); // Paper - setup /paper command
          com.destroystokyo.paper.Metrics.PaperMetrics.startMetrics(); // Paper - start metrics
@@ -19,7 +19,6 @@ index ad967cc2283f902c76e48a59d59cf0dbdacbb5e3..1fd163c4a4fdcbdb2626f15a4549c41c
 +            DedicatedServer.LOGGER.error("Unable to load server configuration", e);
 +            return false;
 +        }
-+        net.sparklypower.sparklypaper.SparklyPaperCommands.INSTANCE.registerCommands(this);
 +        // SparklyPaper end
          com.destroystokyo.paper.VersionHistoryManager.INSTANCE.getClass(); // Paper - load version history now
  
@@ -44,79 +43,8 @@ index 14281a4e72f49dc4eb2ca3da8479c1f81a3a175d..5ff499481583d4cb68297b8600d5ea21
          this.generator = gen;
          this.world = new CraftWorld((ServerLevel) this, gen, biomeProvider, env);
  
-diff --git a/src/main/java/net/sparklypower/sparklypaper/commands/SparklyPaperCommand.java b/src/main/java/net/sparklypower/sparklypaper/commands/SparklyPaperCommand.java
-new file mode 100644
-index 0000000000000000000000000000000000000000..bc0ec96f91f7c9ab9f9a865a50f69707fab8fd27
---- /dev/null
-+++ b/src/main/java/net/sparklypower/sparklypaper/commands/SparklyPaperCommand.java
-@@ -0,0 +1,65 @@
-+package net.sparklypower.sparklypaper.commands;
-+
-+import net.minecraft.server.MinecraftServer;
-+import net.minecraft.server.level.ServerLevel;
-+import net.sparklypower.sparklypaper.configs.SparklyPaperConfigUtils;
-+import org.bukkit.ChatColor;
-+import org.bukkit.Location;
-+import org.bukkit.command.Command;
-+import org.bukkit.command.CommandSender;
-+
-+import java.io.File;
-+import java.util.Collections;
-+import java.util.List;
-+import java.util.stream.Collectors;
-+import java.util.stream.Stream;
-+
-+public class SparklyPaperCommand extends Command {
-+    public SparklyPaperCommand(String name) {
-+        super(name);
-+        this.description = "SparklyPaper related commands";
-+        this.usageMessage = "/sparklypaper [reload | version]";
-+        this.setPermission("bukkit.command.sparklypaper");
-+    }
-+
-+    @Override
-+    public List<String> tabComplete(CommandSender sender, String alias, String[] args, Location location) throws IllegalArgumentException {
-+        if (args.length == 1) {
-+            return Stream.of("reload", "version")
-+                .filter(arg -> arg.startsWith(args[0].toLowerCase()))
-+                .collect(Collectors.toList());
-+        }
-+        return Collections.emptyList();
-+    }
-+
-+    @Override
-+    public boolean execute(CommandSender sender, String commandLabel, String[] args) {
-+        if (!testPermission(sender)) return true;
-+
-+        if (args.length != 1) {
-+            sender.sendMessage(ChatColor.RED + "Usage: " + usageMessage);
-+            return false;
-+        }
-+
-+        if (args[0].equalsIgnoreCase("reload")) {
-+            Command.broadcastCommandMessage(sender, ChatColor.RED + "Please note that this command is not supported and may cause issues.");
-+            Command.broadcastCommandMessage(sender, ChatColor.RED + "If you encounter any issues please use the /stop command to restart your server.");
-+
-+            MinecraftServer console = MinecraftServer.getServer();
-+            SparklyPaperConfigUtils.INSTANCE.init((File) console.options.valueOf("sparklypaper-settings"));
-+            for (ServerLevel level : console.getAllLevels()) {
-+                level.sparklyPaperConfig = SparklyPaperConfigUtils.INSTANCE.getWorldSettings(level.serverLevelData.getLevelName());
-+            }
-+            console.server.reloadCount++;
-+
-+            Command.broadcastCommandMessage(sender, ChatColor.GREEN + "SparklyPaper config reload complete.");
-+        } else if (args[0].equalsIgnoreCase("version")) {
-+            Command verCmd = org.bukkit.Bukkit.getServer().getCommandMap().getCommand("version");
-+            if (verCmd != null) {
-+                return verCmd.execute(sender, commandLabel, new String[0]);
-+            }
-+        }
-+
-+        return true;
-+    }
-+}
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index 5db08432b6afd3639688830e717f40ceaf599248..06cda121c38a4d90e9f324db7482c92796209477 100644
+index 3210696fe074518a3eb80238a2edf774a88b6879..7937c92b180596eeaf0063d9cb5283f3efc7ef26 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 @@ -111,6 +111,7 @@ import net.minecraft.world.level.storage.PlayerDataStorage;
@@ -127,15 +55,15 @@ index 5db08432b6afd3639688830e717f40ceaf599248..06cda121c38a4d90e9f324db7482c927
  import org.bukkit.BanList;
  import org.bukkit.Bukkit;
  import org.bukkit.ChatColor;
-@@ -1056,6 +1057,7 @@ public final class CraftServer implements Server {
- 
+@@ -1057,6 +1058,7 @@ public final class CraftServer implements Server {
          org.spigotmc.SpigotConfig.init((File) this.console.options.valueOf("spigot-settings")); // Spigot
          this.console.paperConfigurations.reloadConfigs(this.console);
+         com.kalimero2.team.mitochondrium.config.MitochondriumConfig.init((File) console.options.valueOf("mitochondrium-settings")); // Mitochondrium
 +        net.sparklypower.sparklypaper.configs.SparklyPaperConfigUtils.INSTANCE.init((File) console.options.valueOf("sparklypaper-settings")); // SparklyPaper
          for (ServerLevel world : this.console.getAllLevels()) {
              // world.serverLevelData.setDifficulty(config.difficulty); // Paper - per level difficulty
              world.setSpawnSettings(world.serverLevelData.getDifficulty() != Difficulty.PEACEFUL && config.spawnMonsters, config.spawnAnimals); // Paper - per level difficulty (from MinecraftServer#setDifficulty(ServerLevel, Difficulty, boolean))
-@@ -1071,6 +1073,7 @@ public final class CraftServer implements Server {
+@@ -1072,6 +1074,7 @@ public final class CraftServer implements Server {
                  }
              }
              world.spigotConfig.init(); // Spigot
@@ -143,7 +71,7 @@ index 5db08432b6afd3639688830e717f40ceaf599248..06cda121c38a4d90e9f324db7482c927
          }
  
          Plugin[] pluginClone = pluginManager.getPlugins().clone(); // Paper
-@@ -1087,6 +1090,7 @@ public final class CraftServer implements Server {
+@@ -1088,6 +1091,7 @@ public final class CraftServer implements Server {
          this.reloadData();
          org.spigotmc.SpigotConfig.registerCommands(); // Spigot
          io.papermc.paper.command.PaperCommands.registerCommands(this.console); // Paper
@@ -152,12 +80,12 @@ index 5db08432b6afd3639688830e717f40ceaf599248..06cda121c38a4d90e9f324db7482c927
          this.ignoreVanillaPermissions = this.commandsConfiguration.getBoolean("ignore-vanilla-permissions");
  
 diff --git a/src/main/java/org/bukkit/craftbukkit/Main.java b/src/main/java/org/bukkit/craftbukkit/Main.java
-index b86ba59158964f73abd6622341a9acb98a33fa44..8ef6c2d1f69864eae5c36f3abd87cc179eb14992 100644
+index 52dc7def82be1da787c0238c4c095d27aad49285..a24992f30e0b099793d4842d188239c90a5720c6 100644
 --- a/src/main/java/org/bukkit/craftbukkit/Main.java
 +++ b/src/main/java/org/bukkit/craftbukkit/Main.java
-@@ -176,6 +176,14 @@ public class Main {
-                         .describedAs("Jar file");
-                 // Paper end
+@@ -184,6 +184,14 @@ public class Main {
+                     .describedAs("Yml file");
+                 // Mitochondrium end
  
 +                // SparklyPaper Start
 +                acceptsAll(asList("sparklypaper", "sparklypaper-settings"), "File for SparklyPaper settings")
@@ -170,35 +98,6 @@ index b86ba59158964f73abd6622341a9acb98a33fa44..8ef6c2d1f69864eae5c36f3abd87cc17
                  // Paper start
                  acceptsAll(asList("server-name"), "Name of the server")
                          .withRequiredArg()
-diff --git a/src/main/kotlin/net/sparklypower/sparklypaper/SparklyPaperCommands.kt b/src/main/kotlin/net/sparklypower/sparklypaper/SparklyPaperCommands.kt
-new file mode 100644
-index 0000000000000000000000000000000000000000..614e64ce6bf5bb7fab5758250927a0d3949d0917
---- /dev/null
-+++ b/src/main/kotlin/net/sparklypower/sparklypaper/SparklyPaperCommands.kt
-@@ -0,0 +1,22 @@
-+package net.sparklypower.sparklypaper
-+
-+import net.minecraft.server.MinecraftServer
-+import net.sparklypower.sparklypaper.commands.SparklyPaperCommand
-+import org.bukkit.command.Command
-+import org.checkerframework.checker.nullness.qual.NonNull
-+import org.checkerframework.framework.qual.DefaultQualifier
-+
-+@DefaultQualifier(NonNull::class)
-+object SparklyPaperCommands {
-+    private val COMMANDS = mapOf(
-+        "sparklypaper" to SparklyPaperCommand("sparklypaper")
-+    )
-+
-+    fun registerCommands(server: MinecraftServer) {
-+        COMMANDS.forEach { (s: String, command: Command) ->
-+            server.server.commandMap.register(
-+                s, "SparklyPaper", command
-+            )
-+        }
-+    }
-+}
-\ No newline at end of file
 diff --git a/src/main/kotlin/net/sparklypower/sparklypaper/configs/SparklyPaperConfig.kt b/src/main/kotlin/net/sparklypower/sparklypaper/configs/SparklyPaperConfig.kt
 new file mode 100644
 index 0000000000000000000000000000000000000000..6398c7b40ba82ffc8588eca458ce92c24dc8ac41

@@ -1,0 +1,449 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: byquanton <32410361+byquanton@users.noreply.github.com>
+Date: Sat, 26 Oct 2024 16:32:20 +0200
+Subject: [PATCH] (Purpur) Implement ram and rambar commands
+
+
+diff --git a/src/main/java/com/kalimero2/team/mitochondrium/command/RamBarCommand.java b/src/main/java/com/kalimero2/team/mitochondrium/command/RamBarCommand.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..09d4483087843f46dfa522b44b223c1c3050a721
+--- /dev/null
++++ b/src/main/java/com/kalimero2/team/mitochondrium/command/RamBarCommand.java
+@@ -0,0 +1,44 @@
++package com.kalimero2.team.mitochondrium.command;
++
++import com.kalimero2.team.mitochondrium.config.MitochondriumConfig;
++import com.kalimero2.team.mitochondrium.task.RamBarTask;
++import com.mojang.brigadier.CommandDispatcher;
++import net.kyori.adventure.text.Component;
++import net.kyori.adventure.text.format.NamedTextColor;
++import net.kyori.adventure.text.minimessage.MiniMessage;
++import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
++import net.minecraft.commands.CommandSourceStack;
++import net.minecraft.commands.Commands;
++import net.minecraft.commands.arguments.EntityArgument;
++import net.minecraft.server.level.ServerPlayer;
++
++import java.util.Collection;
++import java.util.Collections;
++
++public class RamBarCommand {
++    public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
++        dispatcher.register(Commands.literal("rambar")
++            .requires(listener -> listener.hasPermission(2, "bukkit.command.rambar"))
++            .executes(context -> execute(context.getSource(), Collections.singleton(context.getSource().getPlayerOrException())))
++            .then(Commands.argument("targets", EntityArgument.players())
++                .requires(listener -> listener.hasPermission(2, "bukkit.command.rambar.other"))
++                .executes((context) -> execute(context.getSource(), EntityArgument.getPlayers(context, "targets")))
++            )
++        );
++    }
++
++    private static int execute(CommandSourceStack sender, Collection<ServerPlayer> targets) {
++        for (ServerPlayer player : targets) {
++            boolean result = RamBarTask.instance().togglePlayer(player.getBukkitEntity());
++            player.ramBar(result);
++
++            Component output = MiniMessage.miniMessage().deserialize(MitochondriumConfig.rambarCommandOutput,
++                Placeholder.component("onoff", Component.translatable(result ? "options.on" : "options.off")
++                    .color(result ? NamedTextColor.GREEN : NamedTextColor.RED)),
++                Placeholder.parsed("target", player.getGameProfile().getName()));
++
++            sender.sendSuccess(output, false);
++        }
++        return targets.size();
++    }
++}
+diff --git a/src/main/java/com/kalimero2/team/mitochondrium/command/RamCommand.java b/src/main/java/com/kalimero2/team/mitochondrium/command/RamCommand.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..9e5d5a10ce5da8e8db81c07898cb74fc5e9f4988
+--- /dev/null
++++ b/src/main/java/com/kalimero2/team/mitochondrium/command/RamCommand.java
+@@ -0,0 +1,30 @@
++package com.kalimero2.team.mitochondrium.command;
++
++import com.kalimero2.team.mitochondrium.config.MitochondriumConfig;
++import com.kalimero2.team.mitochondrium.task.RamBarTask;
++import com.mojang.brigadier.CommandDispatcher;
++import io.papermc.paper.adventure.PaperAdventure;
++import net.kyori.adventure.text.minimessage.MiniMessage;
++import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
++import net.minecraft.commands.CommandSourceStack;
++import net.minecraft.commands.Commands;
++
++public class RamCommand {
++    public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
++        dispatcher.register(Commands.literal("ram")
++            .requires(listener -> listener.hasPermission(2, "bukkit.command.ram"))
++            .executes(context -> {
++                CommandSourceStack sender = context.getSource();
++                RamBarTask ramBar = RamBarTask.instance();
++                sender.sendSuccess(() -> PaperAdventure.asVanilla(MiniMessage.miniMessage().deserialize(MitochondriumConfig.ramCommandOutput,
++                    Placeholder.component("allocated", ramBar.format(ramBar.getAllocated())),
++                    Placeholder.component("used", ramBar.format(ramBar.getUsed())),
++                    Placeholder.component("xmx", ramBar.format(ramBar.getXmx())),
++                    Placeholder.component("xms", ramBar.format(ramBar.getXms())),
++                    Placeholder.unparsed("percent", ((int) (ramBar.getPercent() * 100)) + "%")
++                )), false);
++                return 1;
++            })
++        );
++    }
++}
+diff --git a/src/main/java/com/kalimero2/team/mitochondrium/config/MitochondriumConfig.java b/src/main/java/com/kalimero2/team/mitochondrium/config/MitochondriumConfig.java
+index 0b5f221a94cdb37665f93b3e4b25ede579604faa..36654febf968d3821edb02bbcd5aa169b1b12f1a 100644
+--- a/src/main/java/com/kalimero2/team/mitochondrium/config/MitochondriumConfig.java
++++ b/src/main/java/com/kalimero2/team/mitochondrium/config/MitochondriumConfig.java
+@@ -2,6 +2,7 @@ package com.kalimero2.team.mitochondrium.config;
+ 
+ import com.google.common.base.Throwables;
+ import com.google.common.collect.ImmutableMap;
++import net.kyori.adventure.bossbar.BossBar;
+ import net.minecraft.world.level.block.Blocks;
+ import org.bukkit.Bukkit;
+ import org.bukkit.command.Command;
+@@ -135,8 +136,34 @@ public class MitochondriumConfig {
+     }
+ 
+     public static String pingCommandOutput = "<green>%s's ping is %sms";
++    public static String ramCommandOutput = "<green>Ram Usage: <used>/<xmx> (<percent>)";
++    public static String rambarCommandOutput = "<green>Rambar toggled <onoff> for <target>";
+ 
+     private static void messages() {
+         pingCommandOutput = getString("settings.messages.ping-command-output", pingCommandOutput);
++        ramCommandOutput = getString("settings.messages.ram-command-output", ramCommandOutput);
++        rambarCommandOutput = getString("settings.messages.rambar-command-output", rambarCommandOutput);
++    }
++
++    public static String commandRamBarTitle = "<gray>Ram<yellow>:</yellow> <used>/<xmx> (<percent>)";
++    public static BossBar.Overlay commandRamBarProgressOverlay = BossBar.Overlay.NOTCHED_20;
++    public static BossBar.Color commandRamBarProgressColorGood = BossBar.Color.GREEN;
++    public static BossBar.Color commandRamBarProgressColorMedium = BossBar.Color.YELLOW;
++    public static BossBar.Color commandRamBarProgressColorLow = BossBar.Color.RED;
++    public static String commandRamBarTextColorGood = "<gradient:#55ff55:#00aa00><text></gradient>";
++    public static String commandRamBarTextColorMedium = "<gradient:#ffff55:#ffaa00><text></gradient>";
++    public static String commandRamBarTextColorLow = "<gradient:#ff5555:#aa0000><text></gradient>";
++    public static int commandRamBarTickInterval = 20;
++
++    private static void commandSettings() {
++        commandRamBarTitle = getString("settings.command.rambar.title", commandRamBarTitle);
++        commandRamBarProgressOverlay = BossBar.Overlay.valueOf(getString("settings.command.rambar.overlay", commandRamBarProgressOverlay.name()));
++        commandRamBarProgressColorGood = BossBar.Color.valueOf(getString("settings.command.rambar.progress-color.good", commandRamBarProgressColorGood.name()));
++        commandRamBarProgressColorMedium = BossBar.Color.valueOf(getString("settings.command.rambar.progress-color.medium", commandRamBarProgressColorMedium.name()));
++        commandRamBarProgressColorLow = BossBar.Color.valueOf(getString("settings.command.rambar.progress-color.low", commandRamBarProgressColorLow.name()));
++        commandRamBarTextColorGood = getString("settings.command.rambar.text-color.good", commandRamBarTextColorGood);
++        commandRamBarTextColorMedium = getString("settings.command.rambar.text-color.medium", commandRamBarTextColorMedium);
++        commandRamBarTextColorLow = getString("settings.command.rambar.text-color.low", commandRamBarTextColorLow);
++        commandRamBarTickInterval = getInt("settings.command.rambar.tick-interval", commandRamBarTickInterval);
+     }
+ }
+diff --git a/src/main/java/com/kalimero2/team/mitochondrium/task/BossBarTask.java b/src/main/java/com/kalimero2/team/mitochondrium/task/BossBarTask.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..26d6c984c81724f98f295c1d7545c8b0a411e4a6
+--- /dev/null
++++ b/src/main/java/com/kalimero2/team/mitochondrium/task/BossBarTask.java
+@@ -0,0 +1,116 @@
++package com.kalimero2.team.mitochondrium.task;
++
++
++import net.kyori.adventure.bossbar.BossBar;
++import net.minecraft.server.level.ServerPlayer;
++import org.bukkit.Bukkit;
++import org.bukkit.craftbukkit.scheduler.MinecraftInternalPlugin;
++import org.bukkit.entity.Player;
++import org.bukkit.scheduler.BukkitRunnable;
++
++import java.util.HashMap;
++import java.util.HashSet;
++import java.util.Iterator;
++import java.util.Map;
++import java.util.UUID;
++
++public abstract class BossBarTask extends BukkitRunnable {
++    private final Map<UUID, BossBar> bossbars = new HashMap<>();
++    private boolean started;
++
++    public static void startAll() {
++        TPSBarTask.instance().start();
++        RamBarTask.instance().start();
++    }
++
++    public static void stopAll() {
++        TPSBarTask.instance().stop();
++        RamBarTask.instance().stop();
++    }
++
++    public static void addToAll(ServerPlayer player) {
++        Player bukkit = player.getBukkitEntity();
++        if (player.tpsBar()) {
++            TPSBarTask.instance().addPlayer(bukkit);
++        }
++        if (player.ramBar()) {
++            TPSBarTask.instance().addPlayer(bukkit);
++        }
++    }
++
++    public static void removeFromAll(Player player) {
++        TPSBarTask.instance().removePlayer(player);
++        RamBarTask.instance().removePlayer(player);
++    }
++
++    abstract BossBar createBossBar();
++
++    abstract void updateBossBar(BossBar bossbar, Player player);
++
++    @Override
++    public void run() {
++        Iterator<Map.Entry<UUID, BossBar>> iter = bossbars.entrySet().iterator();
++        while (iter.hasNext()) {
++            Map.Entry<UUID, BossBar> entry = iter.next();
++            Player player = Bukkit.getPlayer(entry.getKey());
++            if (player == null) {
++                iter.remove();
++                continue;
++            }
++            updateBossBar(entry.getValue(), player);
++        }
++    }
++
++    @Override
++    public void cancel() {
++        super.cancel();
++        new HashSet<>(this.bossbars.keySet()).forEach(uuid -> {
++            Player player = Bukkit.getPlayer(uuid);
++            if (player != null) {
++                removePlayer(player);
++            }
++        });
++        this.bossbars.clear();
++    }
++
++    public boolean removePlayer(Player player) {
++        BossBar bossbar = this.bossbars.remove(player.getUniqueId());
++        if (bossbar != null) {
++            player.hideBossBar(bossbar);
++            return true;
++        }
++        return false;
++    }
++
++    public void addPlayer(Player player) {
++        removePlayer(player);
++        BossBar bossbar = createBossBar();
++        this.bossbars.put(player.getUniqueId(), bossbar);
++        this.updateBossBar(bossbar, player);
++        player.showBossBar(bossbar);
++    }
++
++    public boolean hasPlayer(UUID uuid) {
++        return this.bossbars.containsKey(uuid);
++    }
++
++    public boolean togglePlayer(Player player) {
++        if (removePlayer(player)) {
++            return false;
++        }
++        addPlayer(player);
++        return true;
++    }
++
++    public void start() {
++        stop();
++        this.runTaskTimerAsynchronously(new MinecraftInternalPlugin(), 1, 1);
++        started = true;
++    }
++
++    public void stop() {
++        if (started) {
++            cancel();
++        }
++    }
++}
+diff --git a/src/main/java/com/kalimero2/team/mitochondrium/task/RamBarTask.java b/src/main/java/com/kalimero2/team/mitochondrium/task/RamBarTask.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..37be418a93933eab3690301721e5c7ccfa6a603d
+--- /dev/null
++++ b/src/main/java/com/kalimero2/team/mitochondrium/task/RamBarTask.java
+@@ -0,0 +1,117 @@
++package com.kalimero2.team.mitochondrium.task;
++
++import com.kalimero2.team.mitochondrium.config.MitochondriumConfig;
++import net.kyori.adventure.bossbar.BossBar;
++import net.kyori.adventure.text.Component;
++import net.kyori.adventure.text.minimessage.MiniMessage;
++import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
++import org.bukkit.entity.Player;
++
++import java.lang.management.ManagementFactory;
++import java.lang.management.MemoryUsage;
++
++public class RamBarTask extends BossBarTask {
++    private static RamBarTask instance;
++    private long allocated = 0L;
++    private long used = 0L;
++    private long xmx = 0L;
++    private long xms = 0L;
++    private float percent = 0F;
++    private int tick = 0;
++
++    public static RamBarTask instance() {
++        if (instance == null) {
++            instance = new RamBarTask();
++        }
++        return instance;
++    }
++
++    @Override
++    BossBar createBossBar() {
++        return BossBar.bossBar(Component.text(""), 0.0F, instance().getBossBarColor(), MitochondriumConfig.commandRamBarProgressOverlay);
++    }
++
++    @Override
++    void updateBossBar(BossBar bossbar, Player player) {
++        bossbar.progress(getBossBarProgress());
++        bossbar.color(getBossBarColor());
++        bossbar.name(MiniMessage.miniMessage().deserialize(MitochondriumConfig.commandRamBarTitle,
++            Placeholder.component("allocated", format(this.allocated)),
++            Placeholder.component("used", format(this.used)),
++            Placeholder.component("xmx", format(this.xmx)),
++            Placeholder.component("xms", format(this.xms)),
++            Placeholder.unparsed("percent", ((int) (this.percent * 100)) + "%")
++        ));
++    }
++
++    @Override
++    public void run() {
++        if (this.tick < MitochondriumConfig.commandRamBarTickInterval) {
++            return;
++        }
++        this.tick = 0;
++
++        MemoryUsage heap = ManagementFactory.getMemoryMXBean().getHeapMemoryUsage();
++
++        this.allocated = heap.getCommitted();
++        this.used = heap.getUsed();
++        this.xmx = heap.getMax();
++        this.xms = heap.getInit();
++        this.percent = Math.max(Math.min((float) this.used / this.xmx, 1.0F), 0.0F);
++
++        super.run();
++    }
++
++    private float getBossBarProgress() {
++        return this.percent;
++    }
++
++    private BossBar.Color getBossBarColor() {
++        if (this.percent < 0.5F) {
++            return MitochondriumConfig.commandRamBarProgressColorGood;
++        } else if (this.percent < 0.75F) {
++            return MitochondriumConfig.commandRamBarProgressColorMedium;
++        } else {
++            return MitochondriumConfig.commandRamBarProgressColorLow;
++        }
++    }
++
++    public Component format(long v) {
++        String color;
++        if (this.percent < 0.60F) {
++            color = MitochondriumConfig.commandRamBarTextColorGood;
++        } else if (this.percent < 0.85F) {
++            color = MitochondriumConfig.commandRamBarTextColorMedium;
++        } else {
++            color = MitochondriumConfig.commandRamBarTextColorLow;
++        }
++        String value;
++        if (v < 1024) {
++            value = v + "B";
++        } else {
++            int z = (63 - Long.numberOfLeadingZeros(v)) / 10;
++            value = String.format("%.1f%s", (double) v / (1L << (z * 10)), "BKMGTPE".charAt(z));
++        }
++        return MiniMessage.miniMessage().deserialize(color, Placeholder.unparsed("text", value));
++    }
++
++    public long getAllocated() {
++        return this.allocated;
++    }
++
++    public long getUsed() {
++        return this.used;
++    }
++
++    public long getXmx() {
++        return this.xmx;
++    }
++
++    public long getXms() {
++        return this.xms;
++    }
++
++    public float getPercent() {
++        return this.percent;
++    }
++}
+diff --git a/src/main/java/net/minecraft/commands/Commands.java b/src/main/java/net/minecraft/commands/Commands.java
+index 520b2cf1c6d9285d191bebc2786de835ced68703..bd96c366311effb79b6c4eea9b7c6c913ad96761 100644
+--- a/src/main/java/net/minecraft/commands/Commands.java
++++ b/src/main/java/net/minecraft/commands/Commands.java
+@@ -253,6 +253,8 @@ public class Commands {
+             TransferCommand.register(this.dispatcher);
+             WhitelistCommand.register(this.dispatcher);
+             com.kalimero2.team.mitochondrium.command.PingCommand.register(this.dispatcher);
++            com.kalimero2.team.mitochondrium.command.RamCommand.register(this.dispatcher);
++            com.kalimero2.team.mitochondrium.command.RamBarCommand.register(this.dispatcher);
+         }
+ 
+         if (environment.includeIntegrated) {
+diff --git a/src/main/java/net/minecraft/server/level/ServerPlayer.java b/src/main/java/net/minecraft/server/level/ServerPlayer.java
+index f359ecb161024ad8a6de6d20e9d6de51d29f1611..c71a23b41406d65f966585deb5b790bfc0a92a4c 100644
+--- a/src/main/java/net/minecraft/server/level/ServerPlayer.java
++++ b/src/main/java/net/minecraft/server/level/ServerPlayer.java
+@@ -298,6 +298,8 @@ public class ServerPlayer extends Player {
+     public com.destroystokyo.paper.event.entity.PlayerNaturallySpawnCreaturesEvent playerNaturallySpawnedEvent; // Paper - PlayerNaturallySpawnCreaturesEvent
+     public @Nullable String clientBrandName = null; // Paper - Brand support
+     public org.bukkit.event.player.PlayerQuitEvent.QuitReason quitReason = null; // Paper - Add API for quit reason; there are a lot of changes to do if we change all methods leading to the event
++    private boolean tpsBar = false; // Mitochondrium
++    private boolean ramBar = false; // Mitochondrium
+ 
+     // Paper start - replace player chunk loader
+     private final java.util.concurrent.atomic.AtomicReference<io.papermc.paper.chunk.system.RegionizedPlayerChunkLoader.ViewDistances> viewDistances = new java.util.concurrent.atomic.AtomicReference<>(new io.papermc.paper.chunk.system.RegionizedPlayerChunkLoader.ViewDistances(-1, -1, -1));
+@@ -610,6 +612,8 @@ public class ServerPlayer extends Player {
+             });
+         }
+ 
++        if (nbt.contains("Purpur.TPSBar")) { this.tpsBar = nbt.getBoolean("Purpur.TPSBar"); } // Mitochondrium
++        if (nbt.contains("Purpur.RamBar")) { this.ramBar = nbt.getBoolean("Purpur.RamBar"); } // Mitochondrium
+     }
+ 
+     @Override
+@@ -686,6 +690,8 @@ public class ServerPlayer extends Player {
+             });
+         }
+ 
++        nbt.putBoolean("Purpur.TPSBar", this.tpsBar); // Mitochondrium
++        nbt.putBoolean("Purpur.RamBar", this.ramBar); // Mitochondrium
+     }
+ 
+     // CraftBukkit start - World fallback code, either respawn location or global spawn
+@@ -2890,4 +2896,20 @@ public class ServerPlayer extends Player {
+         return (CraftPlayer) super.getBukkitEntity();
+     }
+     // CraftBukkit end
++
++    public boolean tpsBar() {
++        return this.tpsBar;
++    }
++
++    public void tpsBar(boolean tpsBar) {
++        this.tpsBar = tpsBar;
++    }
++
++    public boolean ramBar() {
++        return this.ramBar;
++    }
++
++    public void ramBar(boolean ramBar) {
++        this.ramBar = ramBar;
++    }
+ }

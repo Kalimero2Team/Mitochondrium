@@ -1,0 +1,228 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: byquanton <32410361+byquanton@users.noreply.github.com>
+Date: Sat, 26 Oct 2024 17:04:16 +0200
+Subject: [PATCH] Mitochondrium Config
+
+
+diff --git a/src/main/java/com/kalimero2/team/mitochondrium/config/MitochondriumConfig.java b/src/main/java/com/kalimero2/team/mitochondrium/config/MitochondriumConfig.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..c7ee8de7ac5b153238b96de3fdb01e8081b39a3f
+--- /dev/null
++++ b/src/main/java/com/kalimero2/team/mitochondrium/config/MitochondriumConfig.java
+@@ -0,0 +1,136 @@
++package com.kalimero2.team.mitochondrium.config;
++
++import com.google.common.base.Throwables;
++import com.google.common.collect.ImmutableMap;
++import net.minecraft.world.level.block.Blocks;
++import org.bukkit.Bukkit;
++import org.bukkit.command.Command;
++import org.bukkit.configuration.ConfigurationSection;
++import org.bukkit.configuration.InvalidConfigurationException;
++import org.bukkit.configuration.file.YamlConfiguration;
++
++import java.io.File;
++import java.io.IOException;
++import java.lang.reflect.InvocationTargetException;
++import java.lang.reflect.Method;
++import java.lang.reflect.Modifier;
++import java.util.List;
++import java.util.Map;
++import java.util.logging.Level;
++
++@SuppressWarnings("unused")
++public class MitochondriumConfig {
++    private static final String HEADER = "This is the main configuration file for Mitochondrium.\n";
++    public static YamlConfiguration config;
++    public static int version;
++    static boolean verbose;
++    private static File CONFIG_FILE;
++    private static Map<String, Command> commands;
++
++    public static void init(File configFile) {
++        CONFIG_FILE = configFile;
++        config = new YamlConfiguration();
++        try {
++            config.load(CONFIG_FILE);
++        } catch (IOException ignore) {
++        } catch (InvalidConfigurationException ex) {
++            Bukkit.getLogger().log(Level.SEVERE, "Could not load purpur.yml, please correct your syntax errors", ex);
++            throw Throwables.propagate(ex);
++        }
++        config.options().header(HEADER);
++        config.options().copyDefaults(true);
++        verbose = getBoolean("verbose", false);
++
++
++        version = getInt("config-version", 35);
++        set("config-version", 35);
++
++        readConfig(MitochondriumConfig.class, null);
++
++        Blocks.rebuildCache();
++    }
++
++    protected static void log(String s) {
++        if (verbose) {
++            log(Level.INFO, s);
++        }
++    }
++
++    protected static void log(Level level, String s) {
++        Bukkit.getLogger().log(level, s);
++    }
++
++    static void readConfig(Class<?> clazz, Object instance) {
++        for (Method method : clazz.getDeclaredMethods()) {
++            if (Modifier.isPrivate(method.getModifiers())) {
++                if (method.getParameterTypes().length == 0 && method.getReturnType() == Void.TYPE) {
++                    try {
++                        method.setAccessible(true);
++                        method.invoke(instance);
++                    } catch (InvocationTargetException ex) {
++                        throw Throwables.propagate(ex.getCause());
++                    } catch (Exception ex) {
++                        Bukkit.getLogger().log(Level.SEVERE, "Error invoking " + method, ex);
++                    }
++                }
++            }
++        }
++
++        try {
++            config.save(CONFIG_FILE);
++        } catch (IOException ex) {
++            Bukkit.getLogger().log(Level.SEVERE, "Could not save " + CONFIG_FILE, ex);
++        }
++    }
++
++    private static void set(String path, Object val) {
++        config.addDefault(path, val);
++        config.set(path, val);
++    }
++
++    private static String getString(String path, String def) {
++        config.addDefault(path, def);
++        return config.getString(path, config.getString(path));
++    }
++
++    private static boolean getBoolean(String path, boolean def) {
++        config.addDefault(path, def);
++        return config.getBoolean(path, config.getBoolean(path));
++    }
++
++    private static double getDouble(String path, double def) {
++        config.addDefault(path, def);
++        return config.getDouble(path, config.getDouble(path));
++    }
++
++    private static int getInt(String path, int def) {
++        config.addDefault(path, def);
++        return config.getInt(path, config.getInt(path));
++    }
++
++    private static <T> List<?> getList(String path, T def) {
++        config.addDefault(path, def);
++        return config.getList(path, config.getList(path));
++    }
++
++    static Map<String, Object> getMap(String path, Map<String, Object> def) {
++        if (def != null && config.getConfigurationSection(path) == null) {
++            config.addDefault(path, def);
++            return def;
++        }
++        return toMap(config.getConfigurationSection(path));
++    }
++
++    private static Map<String, Object> toMap(ConfigurationSection section) {
++        ImmutableMap.Builder<String, Object> builder = ImmutableMap.builder();
++        if (section != null) {
++            for (String key : section.getKeys(false)) {
++                Object obj = section.get(key);
++                if (obj != null) {
++                    builder.put(key, obj instanceof ConfigurationSection val ? toMap(val) : obj);
++                }
++            }
++        }
++        return builder.build();
++    }
++}
+diff --git a/src/main/java/net/minecraft/commands/CommandSourceStack.java b/src/main/java/net/minecraft/commands/CommandSourceStack.java
+index 59d7e8a3d83d3ab7aa28606401bb129ccaeff240..bbbc74e6f7aeee255c6cee7dd80e9cf4b5c97994 100644
+--- a/src/main/java/net/minecraft/commands/CommandSourceStack.java
++++ b/src/main/java/net/minecraft/commands/CommandSourceStack.java
+@@ -310,6 +310,30 @@ public class CommandSourceStack implements ExecutionCommandSource<CommandSourceS
+         }
+     }
+ 
++    // Mitochondrium start
++    public void sendSuccess(@Nullable String message) {
++        sendSuccess(message, false);
++    }
++
++    public void sendSuccess(@Nullable String message, boolean broadcastToOps) {
++        if (message == null) {
++            return;
++        }
++        sendSuccess(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize(message), broadcastToOps);
++    }
++
++    public void sendSuccess(@Nullable net.kyori.adventure.text.Component message) {
++        sendSuccess(message, false);
++    }
++
++    public void sendSuccess(@Nullable net.kyori.adventure.text.Component message, boolean broadcastToOps) {
++        if (message == null) {
++            return;
++        }
++        sendSuccess(() -> io.papermc.paper.adventure.PaperAdventure.asVanilla(message), broadcastToOps);
++    }
++    // Mitochondrium end
++
+     public void sendSuccess(Supplier<Component> feedbackSupplier, boolean broadcastToOps) {
+         boolean flag1 = this.source.acceptsSuccess() && !this.silent;
+         boolean flag2 = broadcastToOps && this.source.shouldInformAdmins() && !this.silent;
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+index 5db08432b6afd3639688830e717f40ceaf599248..3210696fe074518a3eb80238a2edf774a88b6879 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+@@ -1056,6 +1056,7 @@ public final class CraftServer implements Server {
+ 
+         org.spigotmc.SpigotConfig.init((File) this.console.options.valueOf("spigot-settings")); // Spigot
+         this.console.paperConfigurations.reloadConfigs(this.console);
++        com.kalimero2.team.mitochondrium.config.MitochondriumConfig.init((File) console.options.valueOf("mitochondrium-settings")); // Mitochondrium
+         for (ServerLevel world : this.console.getAllLevels()) {
+             // world.serverLevelData.setDifficulty(config.difficulty); // Paper - per level difficulty
+             world.setSpawnSettings(world.serverLevelData.getDifficulty() != Difficulty.PEACEFUL && config.spawnMonsters, config.spawnAnimals); // Paper - per level difficulty (from MinecraftServer#setDifficulty(ServerLevel, Difficulty, boolean))
+@@ -3053,6 +3054,13 @@ public final class CraftServer implements Server {
+             return CraftServer.this.console.paperConfigurations.createLegacyObject(CraftServer.this.console);
+         }
+ 
++        // Mitochondrium start
++        @Override
++        public YamlConfiguration getMitochondriumConfig() {
++            return com.kalimero2.team.mitochondrium.config.MitochondriumConfig.config;
++        }
++        // Mitochondrium end
++
+         @Override
+         public void restart() {
+             org.spigotmc.RestartCommand.restart();
+diff --git a/src/main/java/org/bukkit/craftbukkit/Main.java b/src/main/java/org/bukkit/craftbukkit/Main.java
+index fc02ff4ba56b9070d3da4d92a0eb9220c6b71199..52dc7def82be1da787c0238c4c095d27aad49285 100644
+--- a/src/main/java/org/bukkit/craftbukkit/Main.java
++++ b/src/main/java/org/bukkit/craftbukkit/Main.java
+@@ -176,6 +176,14 @@ public class Main {
+                         .describedAs("Jar file");
+                 // Paper end
+ 
++                // Mitochondrium start
++                acceptsAll(asList("mitochondrium", "mitochondrium-settings"), "File for mitochondrium settings")
++                    .withRequiredArg()
++                    .ofType(File.class)
++                    .defaultsTo(new File("mitochondrium.yml"))
++                    .describedAs("Yml file");
++                // Mitochondrium end
++
+                 // Paper start
+                 acceptsAll(asList("server-name"), "Name of the server")
+                         .withRequiredArg()

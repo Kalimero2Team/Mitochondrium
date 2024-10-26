@@ -1,0 +1,141 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: byquanton <32410361+byquanton@users.noreply.github.com>
+Date: Sat, 26 Oct 2024 16:35:14 +0200
+Subject: [PATCH] (Purpur) Add uptime command
+
+
+diff --git a/src/main/java/com/kalimero2/team/mitochondrium/command/UptimeCommand.java b/src/main/java/com/kalimero2/team/mitochondrium/command/UptimeCommand.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..40ce59a370c32f6b9d84e1f790141b96456a5d4d
+--- /dev/null
++++ b/src/main/java/com/kalimero2/team/mitochondrium/command/UptimeCommand.java
+@@ -0,0 +1,55 @@
++package com.kalimero2.team.mitochondrium.command;
++
++import com.kalimero2.team.mitochondrium.config.MitochondriumConfig;
++import com.mojang.brigadier.CommandDispatcher;
++import net.kyori.adventure.text.Component;
++import net.kyori.adventure.text.minimessage.MiniMessage;
++import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
++import net.minecraft.commands.CommandSourceStack;
++import net.minecraft.commands.Commands;
++import net.minecraft.server.MinecraftServer;
++
++import java.util.concurrent.TimeUnit;
++import java.util.function.Function;
++
++public class UptimeCommand {
++    public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
++        dispatcher.register(Commands.literal("uptime")
++            .requires((listener) -> listener.hasPermission(2, "bukkit.command.uptime"))
++            .executes((context) -> execute(context.getSource()))
++        );
++    }
++
++    private static int execute(CommandSourceStack sender) {
++        Data data = new Data();
++
++        data.format = MitochondriumConfig.uptimeFormat;
++        data.hide = true;
++        data.millis = System.currentTimeMillis() - MinecraftServer.startTimeMillis;
++
++        process(data, "<days>", MitochondriumConfig.uptimeDay, MitochondriumConfig.uptimeDays, TimeUnit.DAYS, TimeUnit.MILLISECONDS::toDays);
++        process(data, "<hours>", MitochondriumConfig.uptimeHour, MitochondriumConfig.uptimeHours, TimeUnit.HOURS, TimeUnit.MILLISECONDS::toHours);
++        process(data, "<minutes>", MitochondriumConfig.uptimeMinute, MitochondriumConfig.uptimeMinutes, TimeUnit.MINUTES, TimeUnit.MILLISECONDS::toMinutes);
++        data.hide = false; // never hide seconds
++        process(data, "<seconds>", MitochondriumConfig.uptimeSecond, MitochondriumConfig.uptimeSeconds, TimeUnit.SECONDS, TimeUnit.MILLISECONDS::toSeconds);
++
++        Component output = MiniMessage.miniMessage().deserialize(MitochondriumConfig.uptimeCommandOutput, Placeholder.unparsed("uptime", data.format));
++        sender.sendSuccess(output, false);
++        return 1;
++    }
++
++    private static void process(Data data, String replace, String singular, String plural, TimeUnit unit, Function<Long, Long> func) {
++        if (data.format.contains(replace)) {
++            long val = func.apply(data.millis);
++            if (data.hide) data.hide = val == 0;
++            if (!data.hide) data.millis -= unit.toMillis(val);
++            data.format = data.format.replace(replace, data.hide ? "" : String.format(val == 1 ? singular : plural, val));
++        }
++    }
++
++    private static class Data {
++        String format;
++        boolean hide;
++        long millis;
++    }
++}
+diff --git a/src/main/java/com/kalimero2/team/mitochondrium/config/MitochondriumConfig.java b/src/main/java/com/kalimero2/team/mitochondrium/config/MitochondriumConfig.java
+index 5fd49de1f851b34aa3a0adf0fe94782c504c56f3..08a019a6fbc6c270d8caa6c12db1b89cbad54668 100644
+--- a/src/main/java/com/kalimero2/team/mitochondrium/config/MitochondriumConfig.java
++++ b/src/main/java/com/kalimero2/team/mitochondrium/config/MitochondriumConfig.java
+@@ -140,12 +140,14 @@ public class MitochondriumConfig {
+     public static String ramCommandOutput = "<green>Ram Usage: <used>/<xmx> (<percent>)";
+     public static String rambarCommandOutput = "<green>Rambar toggled <onoff> for <target>";
+     public static String tpsbarCommandOutput = "<green>Tpsbar toggled <onoff> for <target>";
++    public static String uptimeCommandOutput = "<green>Server uptime is <uptime>";
+ 
+     private static void messages() {
+         pingCommandOutput = getString("settings.messages.ping-command-output", pingCommandOutput);
+         ramCommandOutput = getString("settings.messages.ram-command-output", ramCommandOutput);
+         rambarCommandOutput = getString("settings.messages.rambar-command-output", rambarCommandOutput);
+         tpsbarCommandOutput = getString("settings.messages.tpsbar-command-output", tpsbarCommandOutput);
++        uptimeCommandOutput = getString("settings.messages.uptime-command-output", uptimeCommandOutput);
+     }
+ 
+     public static String commandRamBarTitle = "<gray>Ram<yellow>:</yellow> <used>/<xmx> (<percent>)";
+@@ -168,6 +170,15 @@ public class MitochondriumConfig {
+     public static String commandTPSBarTextColorMedium = "<gradient:#ffff55:#ffaa00><text></gradient>";
+     public static String commandTPSBarTextColorLow = "<gradient:#ff5555:#aa0000><text></gradient>";
+     public static int commandTPSBarTickInterval = 20;
++    public static String uptimeFormat = "<days><hours><minutes><seconds>";
++    public static String uptimeDay = "%02d day, ";
++    public static String uptimeDays = "%02d days, ";
++    public static String uptimeHour = "%02d hour, ";
++    public static String uptimeHours = "%02d hours, ";
++    public static String uptimeMinute = "%02d minute, and ";
++    public static String uptimeMinutes = "%02d minutes, and ";
++    public static String uptimeSecond = "%02d second";
++    public static String uptimeSeconds = "%02d seconds";
+ 
+     private static void commandSettings() {
+         commandRamBarTitle = getString("settings.command.rambar.title", commandRamBarTitle);
+@@ -189,5 +200,14 @@ public class MitochondriumConfig {
+         commandTPSBarTextColorMedium = getString("settings.command.tpsbar.text-color.medium", commandTPSBarTextColorMedium);
+         commandTPSBarTextColorLow = getString("settings.command.tpsbar.text-color.low", commandTPSBarTextColorLow);
+         commandTPSBarTickInterval = getInt("settings.command.tpsbar.tick-interval", commandTPSBarTickInterval);
++        uptimeFormat = getString("settings.command.uptime.format", uptimeFormat);
++        uptimeDay = getString("settings.command.uptime.day", uptimeDay);
++        uptimeDays = getString("settings.command.uptime.days", uptimeDays);
++        uptimeHour = getString("settings.command.uptime.hour", uptimeHour);
++        uptimeHours = getString("settings.command.uptime.hours", uptimeHours);
++        uptimeMinute = getString("settings.command.uptime.minute", uptimeMinute);
++        uptimeMinutes = getString("settings.command.uptime.minutes", uptimeMinutes);
++        uptimeSecond = getString("settings.command.uptime.second", uptimeSecond);
++        uptimeSeconds = getString("settings.command.uptime.seconds", uptimeSeconds);
+     }
+ }
+diff --git a/src/main/java/net/minecraft/commands/Commands.java b/src/main/java/net/minecraft/commands/Commands.java
+index 263565d68a4264f0eb09541f533cde6ac402c31c..fd1102c1690b803d434e3e56763ea8bb5d63bbad 100644
+--- a/src/main/java/net/minecraft/commands/Commands.java
++++ b/src/main/java/net/minecraft/commands/Commands.java
+@@ -256,6 +256,7 @@ public class Commands {
+             com.kalimero2.team.mitochondrium.command.RamCommand.register(this.dispatcher);
+             com.kalimero2.team.mitochondrium.command.RamBarCommand.register(this.dispatcher);
+             com.kalimero2.team.mitochondrium.command.TPSBarCommand.register(this.dispatcher);
++            com.kalimero2.team.mitochondrium.command.UptimeCommand.register(this.dispatcher);
+         }
+ 
+         if (environment.includeIntegrated) {
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index 03a24972b651ad2a6578012fd234c0f85e521813..35b4e15081868ff7bba4025831094485f0805b77 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -297,6 +297,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+     public OptionSet options;
+     public org.bukkit.command.ConsoleCommandSender console;
+     public static int currentTick; // Paper - improve tick loop
++    public static final long startTimeMillis = System.currentTimeMillis(); // Mitochondrium
+     public java.util.Queue<Runnable> processQueue = new java.util.concurrent.ConcurrentLinkedQueue<Runnable>();
+     public int autosavePeriod;
+     // Paper - don't store the vanilla dispatcher

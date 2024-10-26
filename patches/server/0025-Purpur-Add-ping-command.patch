@@ -1,0 +1,71 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: byquanton <32410361+byquanton@users.noreply.github.com>
+Date: Sat, 26 Oct 2024 15:52:29 +0200
+Subject: [PATCH] (Purpur) Add ping command
+
+
+diff --git a/src/main/java/com/kalimero2/team/mitochondrium/command/PingCommand.java b/src/main/java/com/kalimero2/team/mitochondrium/command/PingCommand.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..4e864f7c8cb269df0a3fd794615378f2f1178770
+--- /dev/null
++++ b/src/main/java/com/kalimero2/team/mitochondrium/command/PingCommand.java
+@@ -0,0 +1,32 @@
++package com.kalimero2.team.mitochondrium.command;
++
++import com.kalimero2.team.mitochondrium.config.MitochondriumConfig;
++import com.mojang.brigadier.CommandDispatcher;
++import net.minecraft.commands.CommandSourceStack;
++import net.minecraft.commands.Commands;
++import net.minecraft.commands.arguments.EntityArgument;
++import net.minecraft.server.level.ServerPlayer;
++
++import java.util.Collection;
++import java.util.Collections;
++
++public class PingCommand {
++    public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
++        dispatcher.register(Commands.literal("ping")
++            .requires((listener) -> listener.hasPermission(2, "bukkit.command.ping"))
++            .executes((context) -> execute(context.getSource(), Collections.singleton(context.getSource().getPlayerOrException())))
++            .then(Commands.argument("targets", EntityArgument.players())
++                .requires(listener -> listener.hasPermission(2, "bukkit.command.ping.other"))
++                .executes((context) -> execute(context.getSource(), EntityArgument.getPlayers(context, "targets")))
++            )
++        );
++    }
++
++    private static int execute(CommandSourceStack sender, Collection<ServerPlayer> targets) {
++        for (ServerPlayer player : targets) {
++            String output = String.format(MitochondriumConfig.pingCommandOutput, player.getGameProfile().getName(), player.connection.latency());
++            sender.sendSuccess(output, false);
++        }
++        return targets.size();
++    }
++}
+diff --git a/src/main/java/com/kalimero2/team/mitochondrium/config/MitochondriumConfig.java b/src/main/java/com/kalimero2/team/mitochondrium/config/MitochondriumConfig.java
+index c7ee8de7ac5b153238b96de3fdb01e8081b39a3f..0b5f221a94cdb37665f93b3e4b25ede579604faa 100644
+--- a/src/main/java/com/kalimero2/team/mitochondrium/config/MitochondriumConfig.java
++++ b/src/main/java/com/kalimero2/team/mitochondrium/config/MitochondriumConfig.java
+@@ -133,4 +133,10 @@ public class MitochondriumConfig {
+         }
+         return builder.build();
+     }
++
++    public static String pingCommandOutput = "<green>%s's ping is %sms";
++
++    private static void messages() {
++        pingCommandOutput = getString("settings.messages.ping-command-output", pingCommandOutput);
++    }
+ }
+diff --git a/src/main/java/net/minecraft/commands/Commands.java b/src/main/java/net/minecraft/commands/Commands.java
+index 134befa037177b47dbda1ba033251d901bdbcd3f..520b2cf1c6d9285d191bebc2786de835ced68703 100644
+--- a/src/main/java/net/minecraft/commands/Commands.java
++++ b/src/main/java/net/minecraft/commands/Commands.java
+@@ -252,6 +252,7 @@ public class Commands {
+             StopCommand.register(this.dispatcher);
+             TransferCommand.register(this.dispatcher);
+             WhitelistCommand.register(this.dispatcher);
++            com.kalimero2.team.mitochondrium.command.PingCommand.register(this.dispatcher);
+         }
+ 
+         if (environment.includeIntegrated) {
