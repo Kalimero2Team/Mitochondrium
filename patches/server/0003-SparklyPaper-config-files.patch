@@ -44,7 +44,7 @@ index 14281a4e72f49dc4eb2ca3da8479c1f81a3a175d..5ff499481583d4cb68297b8600d5ea21
          this.world = new CraftWorld((ServerLevel) this, gen, biomeProvider, env);
  
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index 3210696fe074518a3eb80238a2edf774a88b6879..7937c92b180596eeaf0063d9cb5283f3efc7ef26 100644
+index 3210696fe074518a3eb80238a2edf774a88b6879..aef8104df1b10a58cf02b71f94617d3e6fa2d128 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 @@ -111,6 +111,7 @@ import net.minecraft.world.level.storage.PlayerDataStorage;
@@ -71,14 +71,6 @@ index 3210696fe074518a3eb80238a2edf774a88b6879..7937c92b180596eeaf0063d9cb5283f3
          }
  
          Plugin[] pluginClone = pluginManager.getPlugins().clone(); // Paper
-@@ -1088,6 +1091,7 @@ public final class CraftServer implements Server {
-         this.reloadData();
-         org.spigotmc.SpigotConfig.registerCommands(); // Spigot
-         io.papermc.paper.command.PaperCommands.registerCommands(this.console); // Paper
-+        net.sparklypower.sparklypaper.SparklyPaperCommands.INSTANCE.registerCommands(this.console); // SparklyPaper
-         this.overrideAllCommandBlockCommands = this.commandsConfiguration.getStringList("command-block-overrides").contains("*");
-         this.ignoreVanillaPermissions = this.commandsConfiguration.getBoolean("ignore-vanilla-permissions");
- 
 diff --git a/src/main/java/org/bukkit/craftbukkit/Main.java b/src/main/java/org/bukkit/craftbukkit/Main.java
 index 52dc7def82be1da787c0238c4c095d27aad49285..a24992f30e0b099793d4842d188239c90a5720c6 100644
 --- a/src/main/java/org/bukkit/craftbukkit/Main.java

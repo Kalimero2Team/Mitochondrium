@@ -55,35 +55,31 @@ index 0000000000000000000000000000000000000000..3b1b9e06968fa0c722284dc8897a8ea6
 +    }
 +}
 diff --git a/src/main/java/com/kalimero2/team/mitochondrium/config/MitochondriumConfig.java b/src/main/java/com/kalimero2/team/mitochondrium/config/MitochondriumConfig.java
-index 36654febf968d3821edb02bbcd5aa169b1b12f1a..5fd49de1f851b34aa3a0adf0fe94782c504c56f3 100644
+index 0b5f221a94cdb37665f93b3e4b25ede579604faa..13aedf8d8454acf3a90b42b5650fd4b540aa222d 100644
 --- a/src/main/java/com/kalimero2/team/mitochondrium/config/MitochondriumConfig.java
 +++ b/src/main/java/com/kalimero2/team/mitochondrium/config/MitochondriumConfig.java
-@@ -2,6 +2,7 @@ package com.kalimero2.team.mitochondrium.config;
+@@ -2,6 +2,8 @@ package com.kalimero2.team.mitochondrium.config;
  
  import com.google.common.base.Throwables;
  import com.google.common.collect.ImmutableMap;
 +import com.kalimero2.team.mitochondrium.task.TPSBarTask;
- import net.kyori.adventure.bossbar.BossBar;
++import net.kyori.adventure.bossbar.BossBar;
  import net.minecraft.world.level.block.Blocks;
  import org.bukkit.Bukkit;
-@@ -138,11 +139,13 @@ public class MitochondriumConfig {
-     public static String pingCommandOutput = "<green>%s's ping is %sms";
-     public static String ramCommandOutput = "<green>Ram Usage: <used>/<xmx> (<percent>)";
-     public static String rambarCommandOutput = "<green>Rambar toggled <onoff> for <target>";
-+    public static String tpsbarCommandOutput = "<green>Tpsbar toggled <onoff> for <target>";
+ import org.bukkit.command.Command;
+@@ -136,7 +138,36 @@ public class MitochondriumConfig {
  
+     public static String pingCommandOutput = "<green>%s's ping is %sms";
+ 
++    public static String tpsbarCommandOutput = "<green>Tpsbar toggled <onoff> for <target>";
++
      private static void messages() {
          pingCommandOutput = getString("settings.messages.ping-command-output", pingCommandOutput);
-         ramCommandOutput = getString("settings.messages.ram-command-output", ramCommandOutput);
-         rambarCommandOutput = getString("settings.messages.rambar-command-output", rambarCommandOutput);
 +        tpsbarCommandOutput = getString("settings.messages.tpsbar-command-output", tpsbarCommandOutput);
-     }
- 
-     public static String commandRamBarTitle = "<gray>Ram<yellow>:</yellow> <used>/<xmx> (<percent>)";
-@@ -155,6 +158,17 @@ public class MitochondriumConfig {
-     public static String commandRamBarTextColorLow = "<gradient:#ff5555:#aa0000><text></gradient>";
-     public static int commandRamBarTickInterval = 20;
- 
++    }
++
++
++
 +    public static String commandTPSBarTitle = "<gray>TPS<yellow>:</yellow> <tps> MSPT<yellow>:</yellow> <mspt> Ping<yellow>:</yellow> <ping>ms";
 +    public static BossBar.Overlay commandTPSBarProgressOverlay = BossBar.Overlay.NOTCHED_20;
 +    public static TPSBarTask.FillMode commandTPSBarProgressFillMode = TPSBarTask.FillMode.MSPT;
@@ -95,13 +91,7 @@ index 36654febf968d3821edb02bbcd5aa169b1b12f1a..5fd49de1f851b34aa3a0adf0fe94782c
 +    public static String commandTPSBarTextColorLow = "<gradient:#ff5555:#aa0000><text></gradient>";
 +    public static int commandTPSBarTickInterval = 20;
 +
-     private static void commandSettings() {
-         commandRamBarTitle = getString("settings.command.rambar.title", commandRamBarTitle);
-         commandRamBarProgressOverlay = BossBar.Overlay.valueOf(getString("settings.command.rambar.overlay", commandRamBarProgressOverlay.name()));
-@@ -165,5 +179,15 @@ public class MitochondriumConfig {
-         commandRamBarTextColorMedium = getString("settings.command.rambar.text-color.medium", commandRamBarTextColorMedium);
-         commandRamBarTextColorLow = getString("settings.command.rambar.text-color.low", commandRamBarTextColorLow);
-         commandRamBarTickInterval = getInt("settings.command.rambar.tick-interval", commandRamBarTickInterval);
++    private static void commandSettings() {
 +        commandTPSBarTitle = getString("settings.command.tpsbar.title", commandTPSBarTitle);
 +        commandTPSBarProgressOverlay = BossBar.Overlay.valueOf(getString("settings.command.tpsbar.overlay", commandTPSBarProgressOverlay.name()));
 +        commandTPSBarProgressFillMode = TPSBarTask.FillMode.valueOf(getString("settings.command.tpsbar.fill-mode", commandTPSBarProgressFillMode.name()));
@@ -116,7 +106,7 @@ index 36654febf968d3821edb02bbcd5aa169b1b12f1a..5fd49de1f851b34aa3a0adf0fe94782c
  }
 diff --git a/src/main/java/com/kalimero2/team/mitochondrium/task/TPSBarTask.java b/src/main/java/com/kalimero2/team/mitochondrium/task/TPSBarTask.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..88916dff11acc1547342c653370b4b83b8619ac1
+index 0000000000000000000000000000000000000000..2dafe952c86be7d1987fedef271022b98bfc376a
 --- /dev/null
 +++ b/src/main/java/com/kalimero2/team/mitochondrium/task/TPSBarTask.java
 @@ -0,0 +1,142 @@
@@ -161,7 +151,7 @@ index 0000000000000000000000000000000000000000..88916dff11acc1547342c653370b4b83
 +
 +    @Override
 +    public void run() {
-+        if (tick < MitochondriumConfig.commandTPSBarTickInterval) {
++        if (++tick < MitochondriumConfig.commandTPSBarTickInterval) {
 +            return;
 +        }
 +        tick = 0;
@@ -263,13 +253,13 @@ index 0000000000000000000000000000000000000000..88916dff11acc1547342c653370b4b83
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/commands/Commands.java b/src/main/java/net/minecraft/commands/Commands.java
-index bd96c366311effb79b6c4eea9b7c6c913ad96761..263565d68a4264f0eb09541f533cde6ac402c31c 100644
+index 520b2cf1c6d9285d191bebc2786de835ced68703..85259e16eb31118ca037a8e6cfee6dfc72d8fa5c 100644
 --- a/src/main/java/net/minecraft/commands/Commands.java
 +++ b/src/main/java/net/minecraft/commands/Commands.java
-@@ -255,6 +255,7 @@ public class Commands {
+@@ -253,6 +253,7 @@ public class Commands {
+             TransferCommand.register(this.dispatcher);
+             WhitelistCommand.register(this.dispatcher);
              com.kalimero2.team.mitochondrium.command.PingCommand.register(this.dispatcher);
-             com.kalimero2.team.mitochondrium.command.RamCommand.register(this.dispatcher);
-             com.kalimero2.team.mitochondrium.command.RamBarCommand.register(this.dispatcher);
 +            com.kalimero2.team.mitochondrium.command.TPSBarCommand.register(this.dispatcher);
          }
  

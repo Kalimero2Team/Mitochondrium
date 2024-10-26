@@ -66,28 +66,28 @@ index 0000000000000000000000000000000000000000..40ce59a370c32f6b9d84e1f790141b96
 +    }
 +}
 diff --git a/src/main/java/com/kalimero2/team/mitochondrium/config/MitochondriumConfig.java b/src/main/java/com/kalimero2/team/mitochondrium/config/MitochondriumConfig.java
-index 5fd49de1f851b34aa3a0adf0fe94782c504c56f3..08a019a6fbc6c270d8caa6c12db1b89cbad54668 100644
+index 3c096779ab3402904cafd8a039a188f9ae43de6d..172b3e21d5c9e68d109ec77ff73c83569ff7826d 100644
 --- a/src/main/java/com/kalimero2/team/mitochondrium/config/MitochondriumConfig.java
 +++ b/src/main/java/com/kalimero2/team/mitochondrium/config/MitochondriumConfig.java
-@@ -140,12 +140,14 @@ public class MitochondriumConfig {
+@@ -139,12 +139,13 @@ public class MitochondriumConfig {
+     public static String pingCommandOutput = "<green>%s's ping is %sms";
      public static String ramCommandOutput = "<green>Ram Usage: <used>/<xmx> (<percent>)";
      public static String rambarCommandOutput = "<green>Rambar toggled <onoff> for <target>";
+-
      public static String tpsbarCommandOutput = "<green>Tpsbar toggled <onoff> for <target>";
 +    public static String uptimeCommandOutput = "<green>Server uptime is <uptime>";
  
      private static void messages() {
          pingCommandOutput = getString("settings.messages.ping-command-output", pingCommandOutput);
-         ramCommandOutput = getString("settings.messages.ram-command-output", ramCommandOutput);
-         rambarCommandOutput = getString("settings.messages.rambar-command-output", rambarCommandOutput);
          tpsbarCommandOutput = getString("settings.messages.tpsbar-command-output", tpsbarCommandOutput);
 +        uptimeCommandOutput = getString("settings.messages.uptime-command-output", uptimeCommandOutput);
      }
  
-     public static String commandRamBarTitle = "<gray>Ram<yellow>:</yellow> <used>/<xmx> (<percent>)";
-@@ -168,6 +170,15 @@ public class MitochondriumConfig {
-     public static String commandTPSBarTextColorMedium = "<gradient:#ffff55:#ffaa00><text></gradient>";
-     public static String commandTPSBarTextColorLow = "<gradient:#ff5555:#aa0000><text></gradient>";
-     public static int commandTPSBarTickInterval = 20;
+     public static String commandTPSBarTitle = "<gray>TPS<yellow>:</yellow> <tps> MSPT<yellow>:</yellow> <mspt> Ping<yellow>:</yellow> <ping>ms";
+@@ -166,6 +167,15 @@ public class MitochondriumConfig {
+     public static String commandRamBarTextColorMedium = "<gradient:#ffff55:#ffaa00><text></gradient>";
+     public static String commandRamBarTextColorLow = "<gradient:#ff5555:#aa0000><text></gradient>";
+     public static int commandRamBarTickInterval = 20;
 +    public static String uptimeFormat = "<days><hours><minutes><seconds>";
 +    public static String uptimeDay = "%02d day, ";
 +    public static String uptimeDays = "%02d days, ";
@@ -99,11 +99,11 @@ index 5fd49de1f851b34aa3a0adf0fe94782c504c56f3..08a019a6fbc6c270d8caa6c12db1b89c
 +    public static String uptimeSeconds = "%02d seconds";
  
      private static void commandSettings() {
-         commandRamBarTitle = getString("settings.command.rambar.title", commandRamBarTitle);
-@@ -189,5 +200,14 @@ public class MitochondriumConfig {
-         commandTPSBarTextColorMedium = getString("settings.command.tpsbar.text-color.medium", commandTPSBarTextColorMedium);
-         commandTPSBarTextColorLow = getString("settings.command.tpsbar.text-color.low", commandTPSBarTextColorLow);
-         commandTPSBarTickInterval = getInt("settings.command.tpsbar.tick-interval", commandTPSBarTickInterval);
+         commandTPSBarTitle = getString("settings.command.tpsbar.title", commandTPSBarTitle);
+@@ -189,5 +199,14 @@ public class MitochondriumConfig {
+         commandRamBarTextColorMedium = getString("settings.command.rambar.text-color.medium", commandRamBarTextColorMedium);
+         commandRamBarTextColorLow = getString("settings.command.rambar.text-color.low", commandRamBarTextColorLow);
+         commandRamBarTickInterval = getInt("settings.command.rambar.tick-interval", commandRamBarTickInterval);
 +        uptimeFormat = getString("settings.command.uptime.format", uptimeFormat);
 +        uptimeDay = getString("settings.command.uptime.day", uptimeDay);
 +        uptimeDays = getString("settings.command.uptime.days", uptimeDays);
@@ -116,13 +116,14 @@ index 5fd49de1f851b34aa3a0adf0fe94782c504c56f3..08a019a6fbc6c270d8caa6c12db1b89c
      }
  }
 diff --git a/src/main/java/net/minecraft/commands/Commands.java b/src/main/java/net/minecraft/commands/Commands.java
-index 263565d68a4264f0eb09541f533cde6ac402c31c..fd1102c1690b803d434e3e56763ea8bb5d63bbad 100644
+index 4276f34ed2f63e14bee241033388c4e737ae6118..ae4bfe3a10aa8371efc4b91bda20a2deaf296dde 100644
 --- a/src/main/java/net/minecraft/commands/Commands.java
 +++ b/src/main/java/net/minecraft/commands/Commands.java
-@@ -256,6 +256,7 @@ public class Commands {
+@@ -256,6 +256,8 @@ public class Commands {
+             com.kalimero2.team.mitochondrium.command.TPSBarCommand.register(this.dispatcher);
              com.kalimero2.team.mitochondrium.command.RamCommand.register(this.dispatcher);
              com.kalimero2.team.mitochondrium.command.RamBarCommand.register(this.dispatcher);
-             com.kalimero2.team.mitochondrium.command.TPSBarCommand.register(this.dispatcher);
++            com.kalimero2.team.mitochondrium.command.TPSBarCommand.register(this.dispatcher);
 +            com.kalimero2.team.mitochondrium.command.UptimeCommand.register(this.dispatcher);
          }
  
