@@ -1,0 +1,77 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: MrPowerGamerBR <git@mrpowergamerbr.com>
+Date: Tue, 25 Jun 2024 02:52:32 -0300
+Subject: [PATCH] Add CraftItemRecipeEvent
+
+Used when a player OR a crafter block crafts an item, as an alternative to PrepareItemCraftEvent and CraftItemEvent, because both events are not triggered when a item is crafted from a crafter
+
+diff --git a/src/main/java/net/minecraft/server/network/ServerGamePacketListenerImpl.java b/src/main/java/net/minecraft/server/network/ServerGamePacketListenerImpl.java
+index 4ae88bfcead40cd05f9514a48a922a37767cb3cf..1093fbbeb534d2639571c6b7814ba3254e290d73 100644
+--- a/src/main/java/net/minecraft/server/network/ServerGamePacketListenerImpl.java
++++ b/src/main/java/net/minecraft/server/network/ServerGamePacketListenerImpl.java
+@@ -3145,6 +3145,21 @@ public class ServerGamePacketListenerImpl extends ServerCommonPacketListenerImpl
+                                 } else {
+                                     event = new CraftItemEvent(recipe, inventory, type, packet.getSlotNum(), click, action);
+                                 }
++                                // SparklyPaper start - add CraftItemRecipeEvent
++                                // We will pigback a bit on the current implementation
++                                net.sparklypower.sparklypaper.event.inventory.CraftItemRecipeEvent craftItemRecipeEvent = new net.sparklypower.sparklypaper.event.inventory.CraftItemRecipeEvent(
++                                    ((CraftingInventory) top).getMatrix(), // We cannot use the top inventory directly because (it seems) that the first slot is the "result" slot
++                                    recipe,
++                                    event.getCurrentItem()
++                                );
++                                if (craftItemRecipeEvent.callEvent()) {
++                                    event.setCurrentItem(craftItemRecipeEvent.getResult());
++                                } else {
++                                    event.setCancelled(true);
++                                    cancelled = true;
++                                    event.setCurrentItem(craftItemRecipeEvent.getResult());
++                                }
++                                // SparklyPaper end
+                             }
+                         }
+ 
+diff --git a/src/main/java/net/minecraft/world/level/block/CrafterBlock.java b/src/main/java/net/minecraft/world/level/block/CrafterBlock.java
+index 4d315bd1df9f4647814500135195375166c578b3..9d3bc5b7ff57a5ff10fef788f22a21d1d54f1a50 100644
+--- a/src/main/java/net/minecraft/world/level/block/CrafterBlock.java
++++ b/src/main/java/net/minecraft/world/level/block/CrafterBlock.java
+@@ -162,7 +162,10 @@ public class CrafterBlock extends BaseEntityBlock {
+             } else {
+                 RecipeHolder<CraftingRecipe> recipeHolder = optional.get();
+                 ItemStack itemStack = recipeHolder.value().assemble(crafterBlockEntity, world.registryAccess());
+-                if (itemStack.isEmpty()) {
++                // SparklyPaper - add CraftItemRecipeEvent
++                net.sparklypower.sparklypaper.event.inventory.CraftItemRecipeEvent event = org.bukkit.craftbukkit.event.CraftEventFactory.callCraftItemRecipeEvent(crafterBlockEntity, recipeHolder.toBukkitRecipe(), itemStack);
++                itemStack = org.bukkit.craftbukkit.inventory.CraftItemStack.asNMSCopy(event.getResult());
++                if (itemStack.isEmpty() || event.isCancelled()) { // SparklyPaper - add CraftItemRecipeEvent
+                     world.levelEvent(1050, pos, 0);
+                 } else {
+                     crafterBlockEntity.setCraftingTicksRemaining(6);
+diff --git a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
+index 0cba343989d6d33026a8e94f2b58ca93571721a9..4de9187d66d10b5a2c0ee8fe11b585f5d369df4f 100644
+--- a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
++++ b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
+@@ -1442,6 +1442,23 @@ public class CraftEventFactory {
+         return CraftItemStack.asNMSCopy(bitem);
+     }
+ 
++    // SparklyPaper start - add CraftItemRecipeEvent
++    public static net.sparklypower.sparklypaper.event.inventory.CraftItemRecipeEvent callCraftItemRecipeEvent(net.minecraft.world.inventory.CraftingContainer container, Recipe recipe, ItemStack result) {
++        org.bukkit.inventory.ItemStack[] matrix = new org.bukkit.inventory.ItemStack[container.getItems().size()];
++        int i = 0;
++        for (ItemStack item : container.getItems()) {
++            matrix[i] = CraftItemStack.asCraftMirror(item);
++            i++;
++        }
++        org.bukkit.inventory.ItemStack bukkitResult = CraftItemStack.asCraftMirror(result);
++
++        net.sparklypower.sparklypaper.event.inventory.CraftItemRecipeEvent event = new net.sparklypower.sparklypaper.event.inventory.CraftItemRecipeEvent(matrix, recipe, bukkitResult);
++        Bukkit.getPluginManager().callEvent(event);
++
++        return event;
++    }
++    // SparklyPaper end
++
+     // Paper start
+     @Deprecated
+     public static com.destroystokyo.paper.event.entity.ProjectileCollideEvent callProjectileCollideEvent(Entity entity, EntityHitResult position) {
