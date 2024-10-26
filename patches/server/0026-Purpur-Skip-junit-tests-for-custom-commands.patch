@@ -1,0 +1,40 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: byquanton <32410361+byquanton@users.noreply.github.com>
+Date: Sat, 26 Oct 2024 19:33:04 +0200
+Subject: [PATCH] (Purpur) Skip junit tests for custom commands
+
+
+diff --git a/src/test/java/io/papermc/paper/permissions/MinecraftCommandPermissionsTest.java b/src/test/java/io/papermc/paper/permissions/MinecraftCommandPermissionsTest.java
+index 2f3ff50bf3f70b6b404d02d5ffcc079162a63bc1..f8a1cbc0140fcb9b1310169799cefce861760094 100644
+--- a/src/test/java/io/papermc/paper/permissions/MinecraftCommandPermissionsTest.java
++++ b/src/test/java/io/papermc/paper/permissions/MinecraftCommandPermissionsTest.java
+@@ -48,6 +48,7 @@ public class MinecraftCommandPermissionsTest extends AbstractTestingBase {
+             if ("bukkit.command.paper.pgive".equals(vanillaPerm)) { // skip our custom give command
+                 continue;
+             }
++            if (TO_SKIP.contains(vanillaPerm)) continue; // Mitochondrium
+             if (!perms.contains(vanillaPerm)) {
+                 missing.add("Missing permission for " + child.getName() + " (" + vanillaPerm + ") command");
+             } else {
+@@ -60,6 +61,21 @@ public class MinecraftCommandPermissionsTest extends AbstractTestingBase {
+     }
+ 
+     private static final List<String> TO_SKIP = List.of(
++        // Mitochondrium start
++        "minecraft.command.ping",
++        "minecraft.command.ram",
++        "minecraft.command.rambar",
++        "minecraft.command.tpsbar",
++        "minecraft.command.uptime",
++        "minecraft.command.gamemode.adventure",
++        "minecraft.command.gamemode.adventure.other",
++        "minecraft.command.gamemode.creative",
++        "minecraft.command.gamemode.creative.other",
++        "minecraft.command.gamemode.spectator",
++        "minecraft.command.gamemode.spectator.other",
++        "minecraft.command.gamemode.survival",
++        "minecraft.command.gamemode.survival.other",
++        // Mitochondrium end
+         "minecraft.command.selector"
+     );
+ 

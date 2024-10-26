@@ -1792,7 +1792,7 @@ index b7ff7af2513204b151340538d50a65c850bdb75f..45f9b2594e449926d7f00f64bf12fef2
          // Paper end
      }
 diff --git a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
-index 4de9187d66d10b5a2c0ee8fe11b585f5d369df4f..d40f9fa716eed3f9fda532d39037a293727d694b 100644
+index dfbe0914ab2771ac632fd064719878ac47559e9f..2f1d408bf19a55d8b4c874cca3c1f5a450cdf9b8 100644
 --- a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
 +++ b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
 @@ -942,7 +942,7 @@ public class CraftEventFactory {
@@ -1813,7 +1813,7 @@ index 4de9187d66d10b5a2c0ee8fe11b585f5d369df4f..d40f9fa716eed3f9fda532d39037a293
          Bukkit.getPluginManager().callEvent(event);
  
          if (!event.isCancelled()) {
-@@ -2171,7 +2171,7 @@ public class CraftEventFactory {
+@@ -2154,7 +2154,7 @@ public class CraftEventFactory {
          CraftItemStack craftItem = CraftItemStack.asCraftMirror(itemStack.copyWithCount(1));
  
          org.bukkit.event.block.BlockDispenseEvent event = new org.bukkit.event.block.BlockDispenseEvent(bukkitBlock, craftItem.clone(), CraftVector.toBukkit(to));

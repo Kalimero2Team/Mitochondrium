@@ -1,0 +1,18 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: William Blake Galbreath <blake.galbreath@gmail.com>
+Date: Sat, 28 Dec 2019 04:21:54 -0600
+Subject: [PATCH] (Purpur) Add permission for F3+N debug
+
+
+diff --git a/src/main/java/net/minecraft/server/players/PlayerList.java b/src/main/java/net/minecraft/server/players/PlayerList.java
+index ec10a123fc44d11452ea1c505bdb97bc30146d12..57fa7bc4e23edaaff96d9852e838d24af0348797 100644
+--- a/src/main/java/net/minecraft/server/players/PlayerList.java
++++ b/src/main/java/net/minecraft/server/players/PlayerList.java
+@@ -1172,6 +1172,7 @@ public abstract class PlayerList {
+             } else {
+                 b0 = (byte) (24 + permissionLevel);
+             }
++            if (b0 < 28 && player.getBukkitEntity().hasPermission("purpur.debug.f3n")) b0 = 28; // Purpur
+ 
+             player.connection.send(new ClientboundEntityEventPacket(player, b0));
+         }
